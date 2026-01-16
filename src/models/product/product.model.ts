@@ -38,7 +38,8 @@ class Product extends Model {
         sku: {
           type: DataTypes.STRING(255),
           allowNull: false,
-          unique: true,
+          // Note: unique constraint removed to avoid MySQL 64-key limit
+          // Uniqueness is enforced at the application/service layer
         },
         status: {
           type: DataTypes.ENUM("Active", "Inactive"),

@@ -16,46 +16,46 @@ import { DB_HOST, DB_NAME, DB_PASSWORD, DB_USER } from "../config";
 import User from "../models/user/user.model";
 import { setupAssociations } from "./associations";
 
-// const dbConnection = new Sequelize({
-//   dialect: 'mysql',
-//   host: DB_HOST,
-//   port: 3306,
-//   database: DB_NAME,
-//   username: DB_USER,
-//   password: DB_PASSWORD,
-//   dialectOptions: {
-//     connectTimeout: 30000,
-//   },
-//   pool: {
-//     max: 5,
-//     min: 0,
-//     acquire: 30000,
-//     idle: 10000,
-//   },
-//   logging: false, // Disable SQL query logging to reduce overhead
-// });
-//for updating
 const dbConnection = new Sequelize({
-  dialect: "mysql",
+  dialect: 'mysql',
   host: DB_HOST,
   port: 3306,
   database: DB_NAME,
   username: DB_USER,
   password: DB_PASSWORD,
   dialectOptions: {
-    encrypt: true,
-    trustServerCertificate: true,
-    options: {
-      requestTimeout: 30000,
-    },
+    connectTimeout: 30000,
   },
   pool: {
-    max: 10,
+    max: 5,
     min: 0,
     acquire: 30000,
     idle: 10000,
   },
+  logging: false, // Disable SQL query logging to reduce overhead
 });
+//for updating
+// const dbConnection = new Sequelize({
+//   dialect: "mysql",
+//   host: DB_HOST,
+//   port: 3306,
+//   database: DB_NAME,
+//   username: DB_USER,
+//   password: DB_PASSWORD,
+//   dialectOptions: {
+//     encrypt: true,
+//     trustServerCertificate: true,
+//     options: {
+//       requestTimeout: 30000,
+//     },
+//   },
+//   pool: {
+//     max: 10,
+//     min: 0,
+//     acquire: 30000,
+//     idle: 10000,
+//   },
+// });
 
 User.initialize(dbConnection);
 RefreshToken.initialize(dbConnection);
@@ -77,14 +77,36 @@ const syncDatabase = async () => {
   try {
     await dbConnection.sync({ alter: true });
     console.log("Database synced successfully");
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error syncing database:", error);
-    try {
-      await dbConnection.sync({ alter: true });
-      console.log("Database synced successfully (basic mode)");
-    } catch (fallbackError) {
-      console.error("Fallback sync failed:", fallbackError);
-      console.log("Database sync failed - manual intervention may be required");
+    
+    // Handle MySQL 64-key limit error specifically
+    if (error?.parent?.code === "ER_TOO_MANY_KEYS" || error?.code === "ER_TOO_MANY_KEYS") {
+      console.warn(
+        "Warning: MySQL 64-key limit reached. Some unique constraints may need to be handled at the application level."
+      );
+      console.warn(
+        "If you need to drop an existing unique index, run: DROP INDEX index_name ON table_name;"
+      );
+      
+      // Try to sync individual models that might not have the issue
+      try {
+        // Sync without alter to avoid modifying existing tables
+        await dbConnection.sync({ alter: false });
+        console.log("Database models initialized (without altering existing tables)");
+      } catch (syncError) {
+        console.error("Failed to sync database:", syncError);
+        console.log("Database sync failed - manual intervention may be required");
+      }
+    } else {
+      // For other errors, try basic sync
+      try {
+        await dbConnection.sync({ alter: false });
+        console.log("Database synced successfully (basic mode - no alterations)");
+      } catch (fallbackError) {
+        console.error("Fallback sync failed:", fallbackError);
+        console.log("Database sync failed - manual intervention may be required");
+      }
     }
   }
 };

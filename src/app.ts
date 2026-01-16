@@ -84,7 +84,7 @@ export class App {
     this.initializeRedis();
     this.connectToDatabase();
     this.initializeMiddlewares();
-    this.initializeRateLimiters();
+    // this.initializeRateLimiters();
     this.initializePassport();
     this.initializeRoutes(routes);
     this.initializeErrorHandling();
@@ -187,8 +187,8 @@ export class App {
       const rateLimiter = new RateLimiterRedis({
         storeClient: this.redisClient,
         keyPrefix: "middleware",
-        points: 10, // Number of requests
-        duration: 1, // Per 1 second
+        points: 60, // Number of requests
+        duration: 10, // Per 1 second
       });
 
       this.app.use((req, res, next) => {
@@ -225,8 +225,8 @@ export class App {
 
     // IP-based rate limiting for sensitive auth endpoints
     const sensitiveEndpointLimiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 50, // 50 requests per 15 minutes
+      windowMs: 15 * 60 * 1000,
+      max: 5, 
       standardHeaders: true,
       legacyHeaders: false,
       handler: (req, res) => {

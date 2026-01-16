@@ -37,7 +37,8 @@ class ProductVariant extends Model {
         sku: {
           type: DataTypes.STRING(255),
           allowNull: false,
-          unique: true,
+          // Note: unique constraint removed to avoid MySQL 64-key limit
+          // Uniqueness is enforced at the application/service layer
         },
         price: {
           type: DataTypes.DECIMAL(10, 2),

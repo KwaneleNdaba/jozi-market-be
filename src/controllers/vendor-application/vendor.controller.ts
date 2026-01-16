@@ -63,7 +63,7 @@ export class VendorController {
   ): Promise<void> => {
     try {
       const { userId } = req.params;
-      const application = await this.vendorService.getApplicationByUserId(Number(userId));
+      const application = await this.vendorService.getApplicationByUserId(userId);
 
       const response: CustomResponse<IVendorApplication | null> = {
         data: application,

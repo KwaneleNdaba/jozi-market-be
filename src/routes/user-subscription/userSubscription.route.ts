@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { CreateUserSubscriptionDto, UpdateUserSubscriptionDto } from "@/dots/user-subscription/userSubscription.dot";
-import { adminAuthorizationMiddleware, vendorAuthorizationMiddleware, authorizationMiddleware } from "@/middlewares/authorizationMiddleware";
+import { adminAuthorizationMiddleware, vendorAuthorizationMiddleware, authorizationMiddleware, adminOrVendorAuthorizationMiddleware } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
 import type { Routes } from "@/types/routes.interface";
 import { UserSubscriptionController } from "../../controllers/user-subscription/userSubscription.controller";
@@ -27,7 +27,7 @@ export class UserSubscriptionRoute implements Routes {
     // IMPORTANT: This route must come before /user/:userId to avoid route conflicts
     this.router.get(
       `${this.path}/active/user/:userId`,
-      authorizationMiddleware,
+      adminOrVendorAuthorizationMiddleware,
       this.userSubscription.getActiveSubscriptionByUserId
     );
 
@@ -35,14 +35,14 @@ export class UserSubscriptionRoute implements Routes {
     // IMPORTANT: This route must come before /:id to avoid route conflicts
     this.router.get(
       `${this.path}/user/:userId`,
-      authorizationMiddleware,
+      adminOrVendorAuthorizationMiddleware,
       this.userSubscription.getSubscriptionsByUserId
     );
 
     // Get user subscription by ID (authenticated)
     this.router.get(
       `${this.path}/:id`,
-      authorizationMiddleware,
+      adminOrVendorAuthorizationMiddleware,
       this.userSubscription.getSubscriptionById
     );
 

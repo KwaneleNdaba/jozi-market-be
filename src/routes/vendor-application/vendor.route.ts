@@ -6,6 +6,7 @@ import {
 import {
   AdminAuthorizationMiddleware,
   adminAuthorizationMiddleware,
+  adminOrVendorAuthorizationMiddleware,
   authorizationMiddleware,
 } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
@@ -39,7 +40,7 @@ export class VendorRoute implements Routes {
     // Get application by user ID (protected)
     this.router.get(
       `${this.path}/application/user/:userId`,
-      adminAuthorizationMiddleware,
+      adminOrVendorAuthorizationMiddleware,
       this.vendor.getApplicationByUserId
     );
 
