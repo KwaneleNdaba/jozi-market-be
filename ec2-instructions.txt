@@ -36,6 +36,18 @@
   npm -v
   ```
 
+- **Install required system libraries for Node.js (if you get libatomic.so.1 error):**
+
+  ```
+  sudo yum install -y libatomic
+  ```
+
+  Or if using Amazon Linux 2023 or newer:
+
+  ```
+  sudo dnf install -y libatomic
+  ```
+
 ## 3. Install Git
 
 - **Update the system and install Git:**
@@ -63,16 +75,20 @@
 - **Navigate to the directory and install packages:**
 
   ```
-  cd project-management
+  cd jozi-market-be
   ```
 
   ```
-  cd server
+  npm install
   ```
 
+  **Note:** If you encounter the error `libatomic.so.1: cannot open shared object file`, install the missing library first:
+
   ```
-  npm i
+  sudo yum install -y libatomic
   ```
+
+  Then try `npm install` again.
 
 - **Create Env File and Port 80:**
 
