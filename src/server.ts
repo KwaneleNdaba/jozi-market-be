@@ -1,0 +1,35 @@
+import { App } from "./app";
+import { AuthRoute } from "./routes/auth/auth.route";
+import { FileRoute } from "./routes/file/file";
+import { VendorRoute } from "./routes/vendor-application/vendor.route";
+import { CategoryRoute } from "./routes/category/category.route";
+import { AttributeRoute } from "./routes/attribute/attribute.route";
+import { CategoryAttributeRoute } from "./routes/category-attribute/categoryAttribute.route";
+import { ProductRoute } from "./routes/product/product.route";
+import { ProductAttributeValueRoute } from "./routes/product-attribute-value/productAttributeValue.route";
+import { SubscriptionPlanRoute } from "./routes/subscription-plan/subscriptionPlan.route";
+import { FeatureRoute } from "./routes/feature/feature.route";
+import { SubscriptionFeatureRoute } from "./routes/subscription-feature/subscriptionFeature.route";
+import { UserSubscriptionRoute } from "./routes/user-subscription/userSubscription.route";
+import { SubscriptionTransactionRoute } from "./routes/subscription-transaction/subscriptionTransaction.route";
+import { ValidateEnv } from "./utils/validateEnv";
+
+ValidateEnv();
+
+const app = new App([
+  new AuthRoute(),
+  new FileRoute(),
+  new VendorRoute(),
+  new CategoryRoute(),
+  new AttributeRoute(),
+  new CategoryAttributeRoute(),
+  new ProductRoute(),
+  new ProductAttributeValueRoute(),
+  new SubscriptionPlanRoute(),
+  new FeatureRoute(),
+  new SubscriptionFeatureRoute(),
+  new UserSubscriptionRoute(),
+  new SubscriptionTransactionRoute(),
+]);
+
+app.listen();
