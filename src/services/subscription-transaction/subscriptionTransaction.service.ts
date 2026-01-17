@@ -309,7 +309,7 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
       merchant_key: config.merchantKey,
       return_url: returnUrl,
       cancel_url: cancelUrl,
-      notify_url: `${process.env.BACKEND_URL}/api/payfast/subscription-transaction`,
+      notify_url: `${process.env.BACKEND_URL}/api/subscription-transaction/notification`,
       m_payment_id: params.paymentReference,
       amount: params.amount.toFixed(2),
       item_name: itemName,
