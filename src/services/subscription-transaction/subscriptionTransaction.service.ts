@@ -91,7 +91,7 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
       this.validateConfig(config);
 
       // Use R5 for testing in sandbox, actual amount in production
-      const finalAmount = config.isProduction ? Number(plan.price) : 5;
+      const finalAmount = config.isProduction ? Number(plan.price) : 1000000000000000;
 
       if (isNaN(finalAmount) || finalAmount <= 0) {
         throw new HttpException(400, "Invalid subscription plan amount");
