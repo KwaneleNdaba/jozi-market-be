@@ -29,6 +29,9 @@ import {
   SubscriptionTransactionStatus,
   UserSubscriptionStatus,
 } from "@/types/subscription.types";
+import dbConnection from "@/database";
+import UserSubscription from "@/models/user-subscription/userSubscription.model";
+import SubscriptionTransaction from "@/models/subscription-transaction/subscriptionTransaction.model";
 
 interface PayFastConfig {
   merchantId: string;
@@ -197,32 +200,56 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
         };
       }
 
-      // Update transaction status
+      // Parse payment status
       const paymentStatus = this.parsePaymentStatus(payment_status);
-      const updateData: IUpdateSubscriptionTransaction = {
-        id: transaction.id!,
-        status: paymentStatus === "paid" ? SubscriptionTransactionStatus.SUCCESS : SubscriptionTransactionStatus.FAILED,
-        endedAt: new Date(),
-      };
+      
+      // Use database transaction to ensure atomicity
+      const dbTransaction = await dbConnection.transaction();
 
-      if (pf_payment_id) {
-        updateData.providerReference = `${m_payment_id}_${pf_payment_id}`;
+      try {
+        // Get transaction model once
+        const transactionModel = await SubscriptionTransaction.findByPk(transaction.id!, {
+          transaction: dbTransaction,
+        });
+        
+        if (!transactionModel) {
+          throw new Error("Transaction not found");
+        }
+
+        // If payment successful, create or update user subscription FIRST
+        if (paymentStatus === "paid") {
+          await this.createOrUpdateUserSubscription(transaction, transactionModel, dbTransaction);
+          this.paymentContexts.delete(m_payment_id);
+        }
+
+        // Then update transaction status
+        const updateData: any = {
+          status: paymentStatus === "paid" ? SubscriptionTransactionStatus.SUCCESS : SubscriptionTransactionStatus.FAILED,
+          endedAt: new Date(),
+        };
+
+        if (pf_payment_id) {
+          updateData.providerReference = `${m_payment_id}_${pf_payment_id}`;
+        }
+
+        await transactionModel.update(updateData, { transaction: dbTransaction });
+        const updatedTransaction = transactionModel.get({ plain: true });
+
+        // Commit the transaction
+        await dbTransaction.commit();
+
+        console.log(`✅ Subscription ITN processed successfully: ${transaction.id}`);
+        return {
+          success: true,
+          transaction: updatedTransaction,
+          message: `Payment ${paymentStatus}`,
+        };
+      } catch (error: any) {
+        // Rollback on error
+        await dbTransaction.rollback();
+        console.error(`❌ Error processing subscription ITN, transaction rolled back:`, error);
+        throw error;
       }
-
-      const updatedTransaction = await this.subscriptionTransactionRepository.update(updateData);
-
-      // If payment successful, create or update user subscription
-      if (paymentStatus === "paid") {
-        await this.createOrUpdateUserSubscription(transaction);
-        this.paymentContexts.delete(m_payment_id);
-      }
-
-      console.log(`✅ Subscription ITN processed successfully: ${transaction.id}`);
-      return {
-        success: true,
-        transaction: updatedTransaction,
-        message: `Payment ${paymentStatus}`,
-      };
     } catch (error: any) {
       console.error("❌ Subscription ITN handling error:", error);
       return {
@@ -232,7 +259,11 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
     }
   }
 
-  private async createOrUpdateUserSubscription(transaction: ISubscriptionTransaction): Promise<void> {
+  private async createOrUpdateUserSubscription(
+    transaction: ISubscriptionTransaction,
+    transactionModel: any,
+    dbTransaction?: any
+  ): Promise<string> {
     try {
       const plan = await this.subscriptionPlanRepository.findById(transaction.subscriptionPlanId);
       if (!plan) {
@@ -240,7 +271,13 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
       }
 
       // Check if user already has an active subscription
-      const existingSubscription = await this.userSubscriptionRepository.findActiveByUserId(transaction.userId);
+      const existingSubscription = await UserSubscription.findOne({
+        where: {
+          userId: transaction.userId,
+          status: UserSubscriptionStatus.ACTIVE,
+        },
+        transaction: dbTransaction,
+      });
 
       const now = new Date();
       let endDate = new Date();
@@ -252,39 +289,43 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
         endDate.setFullYear(endDate.getFullYear() + 1);
       }
 
+      let userSubscriptionId: string;
+
       if (existingSubscription) {
         // Update existing subscription
-        await this.userSubscriptionRepository.update({
-          id: existingSubscription.id!,
-          subscriptionPlanId: transaction.subscriptionPlanId,
-          startDate: now,
-          endDate,
-          status: UserSubscriptionStatus.ACTIVE,
-        });
-
-        // Update transaction with user subscription ID
-        await this.subscriptionTransactionRepository.update({
-          id: transaction.id!,
-          userSubscriptionId: existingSubscription.id!,
-        });
+        await existingSubscription.update(
+          {
+            subscriptionPlanId: transaction.subscriptionPlanId,
+            startDate: now,
+            endDate,
+            status: UserSubscriptionStatus.ACTIVE,
+          },
+          { transaction: dbTransaction }
+        );
+        userSubscriptionId = existingSubscription.id;
       } else {
         // Create new subscription
-        const newSubscription = await this.userSubscriptionRepository.create({
-          userId: transaction.userId,
-          subscriptionPlanId: transaction.subscriptionPlanId,
-          startDate: now,
-          endDate,
-          status: UserSubscriptionStatus.ACTIVE,
-        });
-
-        // Update transaction with user subscription ID
-        await this.subscriptionTransactionRepository.update({
-          id: transaction.id!,
-          userSubscriptionId: newSubscription.id!,
-        });
+        const newSubscription = await UserSubscription.create(
+          {
+            userId: transaction.userId,
+            subscriptionPlanId: transaction.subscriptionPlanId,
+            startDate: now,
+            endDate,
+            status: UserSubscriptionStatus.ACTIVE,
+          },
+          { transaction: dbTransaction }
+        );
+        userSubscriptionId = newSubscription.id;
       }
 
+      // Update transaction with user subscription ID
+      await transactionModel.update(
+        { userSubscriptionId },
+        { transaction: dbTransaction }
+      );
+
       console.log(`✅ User subscription created/updated for transaction: ${transaction.id}`);
+      return userSubscriptionId;
     } catch (error: any) {
       console.error(`❌ Error creating/updating user subscription:`, error);
       throw error;
