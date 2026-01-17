@@ -84,7 +84,7 @@ export class App {
     this.initializeRedis();
     this.connectToDatabase();
     this.initializeMiddlewares();
-    // this.initializeRateLimiters();
+    this.initializeRateLimiters();
     this.initializePassport();
     this.initializeRoutes(routes);
     this.initializeErrorHandling();
