@@ -27,7 +27,8 @@ class Feature extends Model {
         slug: {
           type: DataTypes.STRING(255),
           allowNull: false,
-          unique: true,
+          // Unique constraint removed to avoid MySQL 64-key limit
+          // Uniqueness is enforced at application level in FeatureService
         },
       },
       {
