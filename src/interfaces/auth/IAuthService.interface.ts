@@ -12,6 +12,8 @@ export interface IAuthService {
   resetPassword(email: string, otp: string, newPassword: string): Promise<IUser>;
   blockUserAccount(userId: string): Promise<IUser>;
   unblockUserAccount(userId: string): Promise<IUser>;
+  activateStore(userId: string): Promise<IUser>;
+  deactivateStore(userId: string): Promise<IUser>;
   findAllStaff(): Promise<IUser[]>;
   deleteUser(userId: string): Promise<void>;
   findUserById(userId: string): Promise<IUser | null>;

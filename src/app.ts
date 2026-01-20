@@ -39,6 +39,11 @@ import { USER_SUBSCRIPTION_REPOSITORY_TOKEN } from "./interfaces/user-subscripti
 import { USER_SUBSCRIPTION_SERVICE_TOKEN } from "./interfaces/user-subscription/IUserSubscriptionService.interface";
 import { SUBSCRIPTION_TRANSACTION_REPOSITORY_TOKEN } from "./interfaces/subscription-transaction/ISubscriptionTransactionRepository.interface";
 import { SUBSCRIPTION_TRANSACTION_SERVICE_TOKEN } from "./interfaces/subscription-transaction/ISubscriptionTransactionService.interface";
+import { CART_REPOSITORY_TOKEN } from "./interfaces/cart/ICartRepository.interface";
+import { CART_SERVICE_TOKEN } from "./interfaces/cart/ICartService.interface";
+import { ORDER_REPOSITORY_TOKEN } from "./interfaces/order/IOrderRepository.interface";
+import { ORDER_SERVICE_TOKEN } from "./interfaces/order/IOrderService.interface";
+import { PAYFAST_SERVICE_TOKEN } from "./interfaces/payfast/IPayfastService.interface";
 import { apiGatewayMultipartMiddleware } from "./middlewares/apiGatewayMultipart";
 import { ErrorMiddleware } from "./middlewares/ErrorMiddleware";
 import { AuthRepository } from "./repositories/auth/auth.repository";
@@ -53,6 +58,8 @@ import { FeatureRepository } from "./repositories/feature/feature.repository";
 import { SubscriptionFeatureRepository } from "./repositories/subscription-feature/subscriptionFeature.repository";
 import { UserSubscriptionRepository } from "./repositories/user-subscription/userSubscription.repository";
 import { SubscriptionTransactionRepository } from "./repositories/subscription-transaction/subscriptionTransaction.repository";
+import { CartRepository } from "./repositories/cart/cart.repository";
+import { OrderRepository } from "./repositories/order/order.repository";
 import { AuthService } from "./services/auth/auth.service";
 import { FileUploadService } from "./services/file-upload/file-upload.service";
 import { VendorService } from "./services/vendor-application/vendor.service";
@@ -66,6 +73,9 @@ import { FeatureService } from "./services/feature/feature.service";
 import { SubscriptionFeatureService } from "./services/subscription-feature/subscriptionFeature.service";
 import { UserSubscriptionService } from "./services/user-subscription/userSubscription.service";
 import { SubscriptionTransactionService } from "./services/subscription-transaction/subscriptionTransaction.service";
+import { CartService } from "./services/cart/cart.service";
+import { OrderService } from "./services/order/order.service";
+import { PayFastService } from "./services/payfast/payfast.service";
 import type { Routes } from "./types/routes.interface";
 import { logger, stream } from "./utils/logger";
 
@@ -148,6 +158,8 @@ export class App {
     Container.set(SUBSCRIPTION_FEATURE_REPOSITORY_TOKEN, new SubscriptionFeatureRepository());
     Container.set(USER_SUBSCRIPTION_REPOSITORY_TOKEN, new UserSubscriptionRepository());
     Container.set(SUBSCRIPTION_TRANSACTION_REPOSITORY_TOKEN, new SubscriptionTransactionRepository());
+    Container.set(CART_REPOSITORY_TOKEN, new CartRepository());
+    Container.set(ORDER_REPOSITORY_TOKEN, new OrderRepository());
 
     // Register Services (depend on repositories via tokens)
     Container.set(AUTH_SERVICE_TOKEN, new AuthService(Container.get(AUTH_REPOSITORY_TOKEN)));
@@ -166,6 +178,22 @@ export class App {
       Container.get(SUBSCRIPTION_TRANSACTION_REPOSITORY_TOKEN),
       Container.get(SUBSCRIPTION_PLAN_REPOSITORY_TOKEN),
       Container.get(USER_SUBSCRIPTION_REPOSITORY_TOKEN)
+    ));
+    Container.set(CART_SERVICE_TOKEN, new CartService(
+      Container.get(CART_REPOSITORY_TOKEN),
+      Container.get(PRODUCT_REPOSITORY_TOKEN),
+      Container.get(PRODUCT_SERVICE_TOKEN)
+    ));
+    Container.set(ORDER_SERVICE_TOKEN, new OrderService(
+      Container.get(ORDER_REPOSITORY_TOKEN),
+      Container.get(CART_REPOSITORY_TOKEN),
+      Container.get(PRODUCT_REPOSITORY_TOKEN),
+      Container.get(PRODUCT_SERVICE_TOKEN)
+    ));
+    Container.set(PAYFAST_SERVICE_TOKEN, new PayFastService(
+      Container.get(CART_REPOSITORY_TOKEN),
+      Container.get(ORDER_REPOSITORY_TOKEN),
+      Container.get(ORDER_SERVICE_TOKEN)
     ));
   }
 

@@ -12,50 +12,57 @@ import Feature from "@/models/feature/feature.model";
 import SubscriptionFeature from "@/models/subscription-feature/subscriptionFeature.model";
 import UserSubscription from "@/models/user-subscription/userSubscription.model";
 import SubscriptionTransaction from "@/models/subscription-transaction/subscriptionTransaction.model";
+import Cart from "@/models/cart/cart.model";
+import CartItem from "@/models/cart-item/cartItem.model";
+import Order from "@/models/order/order.model";
+import OrderItem from "@/models/order-item/orderItem.model";
 import { DB_HOST, DB_NAME, DB_PASSWORD, DB_USER } from "../config";
 import User from "../models/user/user.model";
 import { setupAssociations } from "./associations";
 
-// const dbConnection = new Sequelize({
-//   dialect: 'mysql',
-//   host: DB_HOST,
-//   port: 3306,
-//   database: DB_NAME,
-//   username: DB_USER,
-//   password: DB_PASSWORD,
-//   dialectOptions: {
-//     connectTimeout: 30000,
-//   },
-//   pool: {
-//     max: 5,
-//     min: 0,
-//     acquire: 30000,
-//     idle: 10000,
-//   },
-//   logging: false, // Disable SQL query logging to reduce overhead
-// });
-//for updating
 const dbConnection = new Sequelize({
-  dialect: "mysql",
+  dialect: 'mysql',
   host: DB_HOST,
   port: 3306,
   database: DB_NAME,
   username: DB_USER,
   password: DB_PASSWORD,
   dialectOptions: {
-    encrypt: true,
-    trustServerCertificate: true,
-    options: {
-      requestTimeout: 30000,
-    },
+    connectTimeout: 30000,
   },
   pool: {
-    max: 10,
+    max: 5,
     min: 0,
     acquire: 30000,
     idle: 10000,
   },
+  logging: false, // Disable SQL query logging to reduce overhead
 });
+
+
+//for updating
+
+// const dbConnection = new Sequelize({
+//   dialect: "mysql",
+//   host: DB_HOST,
+//   port: 3306,
+//   database: DB_NAME,
+//   username: DB_USER,
+//   password: DB_PASSWORD,
+//   dialectOptions: {
+//     encrypt: true,
+//     trustServerCertificate: true,
+//     options: {
+//       requestTimeout: 30000,
+//     },
+//   },
+//   pool: {
+//     max: 10,
+//     min: 0,
+//     acquire: 30000,
+//     idle: 10000,
+//   },
+// });
 
 User.initialize(dbConnection);
 RefreshToken.initialize(dbConnection);
@@ -71,6 +78,10 @@ Feature.initialize(dbConnection);
 SubscriptionFeature.initialize(dbConnection);
 UserSubscription.initialize(dbConnection);
 SubscriptionTransaction.initialize(dbConnection);
+Cart.initialize(dbConnection);
+CartItem.initialize(dbConnection);
+Order.initialize(dbConnection);
+OrderItem.initialize(dbConnection);
 
 setupAssociations();
 const syncDatabase = async () => {

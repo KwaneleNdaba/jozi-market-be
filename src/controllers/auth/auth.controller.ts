@@ -269,6 +269,48 @@ export class AuthController {
     }
   };
 
+  public activateStore = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const user = await this.auth.activateStore(userId);
+
+      const response: CustomResponse<IUser> = {
+        data: user,
+        message: "Store activated successfully",
+        error: false,
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public deactivateStore = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const user = await this.auth.deactivateStore(userId);
+
+      const response: CustomResponse<IUser> = {
+        data: user,
+        message: "Store deactivated successfully",
+        error: false,
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public findAllStaff = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const users = await this.auth.findAllStaff();

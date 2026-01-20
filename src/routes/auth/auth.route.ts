@@ -60,6 +60,16 @@ export class AuthRoute implements Routes {
       authorizationMiddleware,
       this.auth.unblockUserAccount
     );
+    this.router.put(
+      `${this.path}/:userId/store/activate`,
+      authorizationMiddleware,
+      this.auth.activateStore
+    );
+    this.router.put(
+      `${this.path}/:userId/store/deactivate`,
+      authorizationMiddleware,
+      this.auth.deactivateStore
+    );
     this.router.delete(
       `${this.path}/:userId/delete`,
       authorizationMiddleware,

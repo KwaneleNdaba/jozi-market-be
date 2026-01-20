@@ -12,6 +12,10 @@ import Feature from "@/models/feature/feature.model";
 import SubscriptionFeature from "@/models/subscription-feature/subscriptionFeature.model";
 import UserSubscription from "@/models/user-subscription/userSubscription.model";
 import SubscriptionTransaction from "@/models/subscription-transaction/subscriptionTransaction.model";
+import Cart from "@/models/cart/cart.model";
+import CartItem from "@/models/cart-item/cartItem.model";
+import Order from "@/models/order/order.model";
+import OrderItem from "@/models/order-item/orderItem.model";
 
 export function setupAssociations() {
   // User - RefreshToken
@@ -24,7 +28,11 @@ export function setupAssociations() {
     onDelete: "SET NULL",
     as: "applicant",
   });
-  User.hasMany(VendorApplication, { foreignKey: "userId", onDelete: "SET NULL" });
+  User.hasMany(VendorApplication, { 
+    foreignKey: "userId", 
+    onDelete: "SET NULL",
+    as: "applicant",
+  });
 
   // User - VendorApplication (reviewer)
   VendorApplication.belongsTo(User, {
@@ -253,6 +261,118 @@ export function setupAssociations() {
     foreignKey: "userSubscriptionId",
     as: "transactions",
     onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+
+  // User - Cart relationship
+  Cart.belongsTo(User, {
+    foreignKey: "userId",
+    as: "user",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  User.hasOne(Cart, {
+    foreignKey: "userId",
+    as: "cart",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Cart - CartItem relationship
+  CartItem.belongsTo(Cart, {
+    foreignKey: "cartId",
+    as: "cart",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Cart.hasMany(CartItem, {
+    foreignKey: "cartId",
+    as: "items",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Product - CartItem relationship
+  CartItem.belongsTo(Product, {
+    foreignKey: "productId",
+    as: "product",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Product.hasMany(CartItem, {
+    foreignKey: "productId",
+    as: "cartItems",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // ProductVariant - CartItem relationship
+  CartItem.belongsTo(ProductVariant, {
+    foreignKey: "productVariantId",
+    as: "variant",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  ProductVariant.hasMany(CartItem, {
+    foreignKey: "productVariantId",
+    as: "cartItems",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // User - Order relationship
+  Order.belongsTo(User, {
+    foreignKey: "userId",
+    as: "user",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(Order, {
+    foreignKey: "userId",
+    as: "orders",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Order - OrderItem relationship
+  OrderItem.belongsTo(Order, {
+    foreignKey: "orderId",
+    as: "order",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Order.hasMany(OrderItem, {
+    foreignKey: "orderId",
+    as: "items",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Product - OrderItem relationship
+  OrderItem.belongsTo(Product, {
+    foreignKey: "productId",
+    as: "product",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Product.hasMany(OrderItem, {
+    foreignKey: "productId",
+    as: "orderItems",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // ProductVariant - OrderItem relationship
+  OrderItem.belongsTo(ProductVariant, {
+    foreignKey: "productVariantId",
+    as: "variant",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  ProductVariant.hasMany(OrderItem, {
+    foreignKey: "productVariantId",
+    as: "orderItems",
+    onDelete: "CASCADE",
     onUpdate: "CASCADE",
   });
 }

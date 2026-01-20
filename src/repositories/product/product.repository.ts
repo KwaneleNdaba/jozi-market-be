@@ -6,6 +6,8 @@ import {
 } from "@/interfaces/product/IProductRepository.interface";
 import Product from "@/models/product/product.model";
 import ProductVariant from "@/models/product-variant/productVariant.model";
+import User from "@/models/user/user.model";
+import VendorApplication from "@/models/vendor-application/vendorApplication.model";
 import type { IProduct, ICreateProduct, IUpdateProduct } from "@/types/product.types";
 
 @Service({ id: PRODUCT_REPOSITORY_TOKEN })
@@ -27,6 +29,7 @@ export class ProductRepository implements IProductRepository {
         subcategoryId: technicalDetails.subcategoryId || null,
         regularPrice: technicalDetails.regularPrice,
         discountPrice: technicalDetails.discountPrice || null,
+        initialStock: technicalDetails.initialStock !== undefined ? technicalDetails.initialStock : null,
         careGuidelines: productFields.careGuidelines,
         packagingNarrative: productFields.packagingNarrative,
         images: productFields.images,
@@ -62,6 +65,21 @@ export class ProductRepository implements IProductRepository {
             as: "variants",
             required: false,
           },
+          {
+            model: User,
+            as: "vendor",
+            required: true,
+            where: { isStoreActive: true },
+            include: [
+              {
+                model: VendorApplication,
+                as: "applicant",
+                required: false,
+                attributes: ["shopName", "status", "submittedAt", "description", "files"],
+                order: [["submittedAt", "DESC"]],
+              },
+            ],
+          },
         ],
         raw: false,
       });
@@ -88,6 +106,21 @@ export class ProductRepository implements IProductRepository {
             as: "variants",
             required: false,
           },
+          {
+            model: User,
+            as: "vendor",
+            required: true,
+            where: { isStoreActive: true },
+            include: [
+              {
+                model: VendorApplication,
+                as: "applicant",
+                required: false,
+                attributes: ["shopName", "status", "submittedAt", "description", "files"],
+                order: [["submittedAt", "DESC"]],
+              },
+            ],
+          },
         ],
         raw: false,
       });
@@ -111,6 +144,21 @@ export class ProductRepository implements IProductRepository {
             model: ProductVariant,
             as: "variants",
             required: false,
+          },
+          {
+            model: User,
+            as: "vendor",
+            required: true,
+            where: { isStoreActive: true },
+            include: [
+              {
+                model: VendorApplication,
+                as: "applicant",
+                required: false,
+                attributes: ["shopName", "status", "submittedAt", "description", "files"],
+                order: [["submittedAt", "DESC"]],
+              },
+            ],
           },
         ],
         raw: false,
@@ -138,6 +186,21 @@ export class ProductRepository implements IProductRepository {
             as: "variants",
             required: false,
           },
+          {
+            model: User,
+            as: "vendor",
+            required: true,
+            where: { isStoreActive: true },
+            include: [
+              {
+                model: VendorApplication,
+                as: "applicant",
+                required: false,
+                attributes: ["shopName", "status", "submittedAt", "description", "files"],
+                order: [["submittedAt", "DESC"]],
+              },
+            ],
+          },
         ],
         raw: false,
         order: [["createdAt", "DESC"]],
@@ -158,6 +221,21 @@ export class ProductRepository implements IProductRepository {
             model: ProductVariant,
             as: "variants",
             required: false,
+          },
+          {
+            model: User,
+            as: "vendor",
+            required: true,
+            where: { isStoreActive: true },
+            include: [
+              {
+                model: VendorApplication,
+                as: "applicant",
+                required: false,
+                attributes: ["shopName", "status", "submittedAt", "description", "files"],
+                order: [["submittedAt", "DESC"]],
+              },
+            ],
           },
         ],
         raw: false,
@@ -184,6 +262,21 @@ export class ProductRepository implements IProductRepository {
             model: ProductVariant,
             as: "variants",
             required: false,
+          },
+          {
+            model: User,
+            as: "vendor",
+            required: true,
+            where: { isStoreActive: true },
+            include: [
+              {
+                model: VendorApplication,
+                as: "applicant",
+                required: false,
+                attributes: ["shopName", "status", "submittedAt", "description", "files"],
+                order: [["submittedAt", "DESC"]],
+              },
+            ],
           },
         ],
         raw: false,
@@ -233,6 +326,9 @@ export class ProductRepository implements IProductRepository {
         if (updateData.technicalDetails.discountPrice !== undefined) {
           updatePayload.discountPrice = updateData.technicalDetails.discountPrice;
         }
+        if (updateData.technicalDetails.initialStock !== undefined) {
+          updatePayload.initialStock = updateData.technicalDetails.initialStock;
+        }
       }
 
       await product.update(updatePayload);
@@ -262,6 +358,21 @@ export class ProductRepository implements IProductRepository {
             model: ProductVariant,
             as: "variants",
             required: false,
+          },
+          {
+            model: User,
+            as: "vendor",
+            required: true,
+            where: { isStoreActive: true },
+            include: [
+              {
+                model: VendorApplication,
+                as: "applicant",
+                required: false,
+                attributes: ["shopName", "status", "submittedAt", "description", "files"],
+                order: [["submittedAt", "DESC"]],
+              },
+            ],
           },
         ],
         raw: false,

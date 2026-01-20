@@ -246,6 +246,22 @@ export class AuthService implements IAuthService {
         }
     }
 
+    public async activateStore(userId: string): Promise<IUser> {
+        try {
+            return await this.authRepository.toggleStoreStatus(userId, true);
+        } catch (error) {
+            throw new HttpException(500, error.message)
+        }
+    }
+
+    public async deactivateStore(userId: string): Promise<IUser> {
+        try {
+            return await this.authRepository.toggleStoreStatus(userId, false);
+        } catch (error) {
+            throw new HttpException(500, error.message)
+        }
+    }
+
       public async findAllStaff(): Promise<IUser[]> {
         try {
             return await this.authRepository.findAllStaff();

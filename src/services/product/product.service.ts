@@ -103,6 +103,18 @@ export class ProductService implements IProductService {
       }
     }
 
+    // Enrich vendor logo with signed URL if it exists
+    if (enrichedProduct.vendorLogo) {
+      try {
+        const s3Key = this.extractS3Key(enrichedProduct.vendorLogo);
+        const signedUrl = await getDownloadSignedUrl(s3Key, undefined, 3600);
+        enrichedProduct.vendorLogo = signedUrl;
+      } catch (error) {
+        // If signed URL generation fails, keep original URL
+        logger.error(`Failed to generate signed URL for vendor logo:`, error);
+      }
+    }
+
     return enrichedProduct;
   }
 
@@ -110,12 +122,46 @@ export class ProductService implements IProductService {
     // Fetch product attribute values
     const attributeValues = await this.productAttributeValueRepository.findByProductId(product.id);
 
+    // Extract vendor name, description, and logo from nested structure
+    let vendorName: string | undefined = undefined;
+    let vendorDescription: string | undefined = undefined;
+    let vendorLogo: string | undefined = undefined;
+    
+    if (product.vendor && product.vendor.applicant) {
+      let selectedApplication: any = null;
+      
+      if (Array.isArray(product.vendor.applicant) && product.vendor.applicant.length > 0) {
+        // Get the most recent approved application, or the most recent one if none approved
+        const approvedApplication = product.vendor.applicant.find((app: any) => app.status === "approved");
+        if (approvedApplication) {
+          selectedApplication = approvedApplication;
+        } else if (product.vendor.applicant.length > 0) {
+          // Fallback to most recent application if no approved one exists
+          selectedApplication = product.vendor.applicant[0];
+        }
+      } else if (product.vendor.applicant) {
+        // If it's a single object (not array)
+        selectedApplication = product.vendor.applicant;
+      }
+      
+      if (selectedApplication) {
+        vendorName = selectedApplication.shopName;
+        vendorDescription = selectedApplication.description;
+        
+        // Extract logo from files object
+        if (selectedApplication.files && selectedApplication.files.logoUrl) {
+          vendorLogo = selectedApplication.files.logoUrl;
+        }
+      }
+    }
+
     // Reconstruct technicalDetails with attributes
     const technicalDetails: ITechnicalDetails = {
       categoryId: product.categoryId,
       subcategoryId: product.subcategoryId || undefined,
       regularPrice: parseFloat(product.regularPrice),
       discountPrice: product.discountPrice ? parseFloat(product.discountPrice) : undefined,
+      initialStock: product.initialStock !== null && product.initialStock !== undefined ? product.initialStock : undefined,
       attributes: attributeValues.map((av: any) => ({
         attributeId: av.attributeId,
         value: av.value,
@@ -137,11 +183,14 @@ export class ProductService implements IProductService {
       images: product.images || [],
       video: product.video || undefined,
       variants: product.variants || [],
+      vendorName,
+      vendorDescription,
+      vendorLogo,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };
 
-    // Enrich with signed URLs for images and video
+    // Enrich with signed URLs for images, video, and vendor logo
     return await this.enrichWithSignedUrls(enrichedProduct);
   }
 

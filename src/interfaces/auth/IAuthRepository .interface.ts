@@ -25,6 +25,7 @@ export interface IAuthRepository {
     profileData: { fullName?: string; phone?: string; profileUrl?: string }
   ): Promise<IUser>;
   toggleUserAccountStatus(userId: string, isAccountBlocked: boolean): Promise<IUser>;
+  toggleStoreStatus(userId: string, isStoreActive: boolean): Promise<IUser>;
   updatePasswordWithOldPassword(params: IUpdatePassword): Promise<IUser>;
   findOrCreateUserByProvider(providerData: {
     email: string;

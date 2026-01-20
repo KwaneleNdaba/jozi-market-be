@@ -224,13 +224,13 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
 
         // Then update transaction status
         const updateData: any = {
-          status: paymentStatus === "paid" ? SubscriptionTransactionStatus.SUCCESS : SubscriptionTransactionStatus.FAILED,
-          endedAt: new Date(),
-        };
+        status: paymentStatus === "paid" ? SubscriptionTransactionStatus.SUCCESS : SubscriptionTransactionStatus.FAILED,
+        endedAt: new Date(),
+      };
 
-        if (pf_payment_id) {
-          updateData.providerReference = `${m_payment_id}_${pf_payment_id}`;
-        }
+      if (pf_payment_id) {
+        updateData.providerReference = `${m_payment_id}_${pf_payment_id}`;
+      }
 
         await transactionModel.update(updateData, { transaction: dbTransaction });
         const updatedTransaction = transactionModel.get({ plain: true });
@@ -238,12 +238,12 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
         // Commit the transaction
         await dbTransaction.commit();
 
-        console.log(`✅ Subscription ITN processed successfully: ${transaction.id}`);
-        return {
-          success: true,
-          transaction: updatedTransaction,
-          message: `Payment ${paymentStatus}`,
-        };
+      console.log(`✅ Subscription ITN processed successfully: ${transaction.id}`);
+      return {
+        success: true,
+        transaction: updatedTransaction,
+        message: `Payment ${paymentStatus}`,
+      };
       } catch (error: any) {
         // Rollback on error
         await dbTransaction.rollback();
@@ -295,10 +295,10 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
         // Update existing subscription
         await existingSubscription.update(
           {
-            subscriptionPlanId: transaction.subscriptionPlanId,
-            startDate: now,
-            endDate,
-            status: UserSubscriptionStatus.ACTIVE,
+          subscriptionPlanId: transaction.subscriptionPlanId,
+          startDate: now,
+          endDate,
+          status: UserSubscriptionStatus.ACTIVE,
           },
           { transaction: dbTransaction }
         );
@@ -307,18 +307,18 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
         // Create new subscription
         const newSubscription = await UserSubscription.create(
           {
-            userId: transaction.userId,
-            subscriptionPlanId: transaction.subscriptionPlanId,
-            startDate: now,
-            endDate,
-            status: UserSubscriptionStatus.ACTIVE,
+          userId: transaction.userId,
+          subscriptionPlanId: transaction.subscriptionPlanId,
+          startDate: now,
+          endDate,
+          status: UserSubscriptionStatus.ACTIVE,
           },
           { transaction: dbTransaction }
         );
         userSubscriptionId = newSubscription.id;
       }
 
-      // Update transaction with user subscription ID
+        // Update transaction with user subscription ID
       await transactionModel.update(
         { userSubscriptionId },
         { transaction: dbTransaction }

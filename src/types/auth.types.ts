@@ -27,6 +27,7 @@ export interface IUser {
   canReview: boolean;
   phone: string;
   isPhoneConfirmed: boolean;
+  isStoreActive: boolean;
   profileUrl?: string;
   address?: string;
   provider_type?: string;

@@ -12,6 +12,9 @@ import { FeatureRoute } from "./routes/feature/feature.route";
 import { SubscriptionFeatureRoute } from "./routes/subscription-feature/subscriptionFeature.route";
 import { UserSubscriptionRoute } from "./routes/user-subscription/userSubscription.route";
 import { SubscriptionTransactionRoute } from "./routes/subscription-transaction/subscriptionTransaction.route";
+import { CartRoute } from "./routes/cart/cart.route";
+import { OrderRoute } from "./routes/order/order.route";
+import { PayFastRoute } from "./routes/payfast/payfast.route";
 import { ValidateEnv } from "./utils/validateEnv";
 
 ValidateEnv();
@@ -30,6 +33,9 @@ const app = new App([
   new SubscriptionFeatureRoute(),
   new UserSubscriptionRoute(),
   new SubscriptionTransactionRoute(),
+  new CartRoute(),
+  new OrderRoute(),
+  new PayFastRoute(),
 ]);
 
 app.listen();

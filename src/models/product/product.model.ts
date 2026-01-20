@@ -12,6 +12,7 @@ class Product extends Model {
   public subcategoryId?: string;
   public regularPrice!: number;
   public discountPrice?: number;
+  public initialStock?: number; // Stock for products without variants
   public careGuidelines!: string;
   public packagingNarrative!: string;
   public images!: any; // JSON field
@@ -87,6 +88,12 @@ class Product extends Model {
         discountPrice: {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: true,
+        },
+        initialStock: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          defaultValue: 0,
+          comment: "Initial stock quantity for products without variants",
         },
         careGuidelines: {
           type: DataTypes.TEXT,

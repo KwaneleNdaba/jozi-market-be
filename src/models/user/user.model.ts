@@ -14,6 +14,7 @@ class User extends Model {
   public phone: string;
   public isPhoneConfirmed: boolean;
   public isEmailConfirmed: boolean;
+  public isStoreActive: boolean;
   public profileUrl: string;
   public address: string;
   public createdAt?: Date;
@@ -63,6 +64,11 @@ class User extends Model {
           defaultValue: false,
         },
         isEmailConfirmed: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        isStoreActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,

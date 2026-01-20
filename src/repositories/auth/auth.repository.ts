@@ -298,6 +298,24 @@ export class AuthRepository implements IAuthRepository {
     }
   }
 
+  public async toggleStoreStatus(userId: string, isStoreActive: boolean): Promise<IUser> {
+    try {
+      const user = await User.findOne({
+        where: { id: userId },
+        raw: false,
+      });
+
+      if (!user) {
+        throw new HttpException(404, "User not found");
+      }
+
+      await user.update({ isStoreActive });
+      return await this.findUserById(userId);
+    } catch (error) {
+      throw new HttpException(409, error.message);
+    }
+  }
+
   public async findAllStaff(): Promise<IUser[]> {
     try {
       const staff = await User.findAll({
@@ -464,6 +482,7 @@ export class AuthRepository implements IAuthRepository {
           canReview: false,
           isPhoneConfirmed: false,
           isEmailConfirmed: true, // OAuth providers verify email
+          isStoreActive: false,
         } as any,
         {
           raw: false,
