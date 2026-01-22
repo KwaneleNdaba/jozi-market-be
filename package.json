@@ -14,6 +14,7 @@
     "format": "biome format --write src/",
     "seed:features": "ts-node -r tsconfig-paths/register src/database/seed-features.ts",
     "seed:categories": "ts-node -r tsconfig-paths/register src/database/seed-categories-attributes.ts",
+    "seed:users-vendors-products": "ts-node -r tsconfig-paths/register src/database/seed-users-vendors-products.ts",
     "deploy:prod": "npm run build && pm2 start ecosystem.config.js --only prod",
     "deploy:dev": "pm2 start ecosystem.config.js --only dev"
   },

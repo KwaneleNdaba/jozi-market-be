@@ -12,6 +12,18 @@ class Order extends Model {
   public email!: string;
   public phone?: string;
   public notes?: string;
+  // Return request fields
+  public returnRequestStatus?: string | null;
+  public returnRequestedAt?: Date | null;
+  public returnReviewedBy?: string | null;
+  public returnReviewedAt?: Date | null;
+  public returnRejectionReason?: string | null;
+  // Cancellation request fields
+  public cancellationRequestStatus?: string | null;
+  public cancellationRequestedAt?: Date | null;
+  public cancellationReviewedBy?: string | null;
+  public cancellationReviewedAt?: Date | null;
+  public cancellationRejectionReason?: string | null;
   public createdAt?: Date;
   public updatedAt?: Date;
 
@@ -40,7 +52,7 @@ class Order extends Model {
           // Uniqueness is enforced at the application/service layer
         },
         status: {
-          type: DataTypes.ENUM("pending", "processing", "shipped", "delivered", "cancelled"),
+          type: DataTypes.ENUM("pending", "processing", "shipped", "delivered", "cancelled", "returned"),
           allowNull: false,
           defaultValue: "pending",
         },
@@ -70,6 +82,62 @@ class Order extends Model {
           allowNull: true,
         },
         notes: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
+        // Return request fields
+        returnRequestStatus: {
+          type: DataTypes.ENUM("pending", "approved", "rejected"),
+          allowNull: true,
+          defaultValue: null,
+        },
+        returnRequestedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        returnReviewedBy: {
+          type: DataTypes.UUID,
+          allowNull: true,
+          references: {
+            model: "users",
+            key: "id",
+          },
+          onDelete: "SET NULL",
+          onUpdate: "CASCADE",
+        },
+        returnReviewedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        returnRejectionReason: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
+        // Cancellation request fields
+        cancellationRequestStatus: {
+          type: DataTypes.ENUM("pending", "approved", "rejected"),
+          allowNull: true,
+          defaultValue: null,
+        },
+        cancellationRequestedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        cancellationReviewedBy: {
+          type: DataTypes.UUID,
+          allowNull: true,
+          references: {
+            model: "users",
+            key: "id",
+          },
+          onDelete: "SET NULL",
+          onUpdate: "CASCADE",
+        },
+        cancellationReviewedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        cancellationRejectionReason: {
           type: DataTypes.TEXT,
           allowNull: true,
         },

@@ -3,7 +3,7 @@ import { Container } from "typedi";
 import { FRONTEND_URL } from "@/config";
 import { HttpException } from "@/exceptions/HttpException";
 import { AUTH_SERVICE_TOKEN } from "@/interfaces/auth/IAuthService.interface";
-import type { IUser, IUserLogin, TokenData } from "@/types/auth.types";
+import type { IUser, IUserLogin, TokenData, IVendorWithApplication } from "@/types/auth.types";
 import type { CustomResponse } from "@/types/response.interface";
 import { resetPasswordTemplate } from "@/utils/email/templates/reset-password";
 import { sendMail } from "@/utils/email/email";
@@ -176,7 +176,11 @@ export class AuthController {
     try {
       const fetchedUser = await this.auth.findUserById(req.params.userId);
 
-      const response: CustomResponse<IUser> = {
+      if (!fetchedUser) {
+        throw new HttpException(404, "User not found");
+      }
+
+      const response: CustomResponse<IUser | IVendorWithApplication> = {
         data: fetchedUser,
         message: "User fetched successfully",
         error: false,
@@ -453,6 +457,25 @@ export class AuthController {
       res.redirect(
         `${frontendUrl}/auth/callback?token=${tokenData.accessToken}&refreshToken=${tokenData.refreshToken}`
       );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getActiveVendorsWithProducts = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const vendors = await this.auth.getActiveVendorsWithProducts();
+
+      const response: CustomResponse<IVendorWithApplication[]> = {
+        data: vendors,
+        message: "Active vendors with products retrieved successfully",
+        error: false,
+      };
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

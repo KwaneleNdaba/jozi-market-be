@@ -4,13 +4,45 @@ import { sign } from "jsonwebtoken";
 import { Inject, Service } from "typedi";
 import { AUTH_REPOSITORY_TOKEN, type IAuthRepository } from "@/interfaces/auth/IAuthRepository .interface";
 import { AUTH_SERVICE_TOKEN, type IAuthService } from "@/interfaces/auth/IAuthService.interface";
-import type { DataStoreInToken, IUpdatePassword, IUser, IUserLogin, TokenData } from "@/types/auth.types";
+import type { DataStoreInToken, IUpdatePassword, IUser, IUserLogin, TokenData, IVendorWithApplication } from "@/types/auth.types";
 import { SECRET_KEY } from "../../config";
 import { HttpException } from "../../exceptions/HttpException";
+import { getDownloadSignedUrl } from "@/utils/s3";
 
 @Service({ id: AUTH_SERVICE_TOKEN })
 export class AuthService implements IAuthService {
     constructor(@Inject(AUTH_REPOSITORY_TOKEN) private readonly authRepository: IAuthRepository) { }
+
+    /**
+     * Helper function to extract S3 key from URL and generate signed URL
+     */
+    private async enrichFileUrl(fileUrl: string | undefined): Promise<string | undefined> {
+        if (!fileUrl) {
+            return fileUrl;
+        }
+
+        try {
+            // Extract S3 key from URL
+            let s3Key = fileUrl;
+            if (s3Key.startsWith('http://') || s3Key.startsWith('https://')) {
+                const urlWithoutQuery = s3Key.split('?')[0];
+                const urlParts = urlWithoutQuery.split('/');
+                const keyIndex = urlParts.findIndex(part => part === 'jozi-makert-files');
+                s3Key = keyIndex !== -1 
+                    ? urlParts.slice(keyIndex).join('/')
+                    : `jozi-makert-files/${urlParts[urlParts.length - 1]}`;
+            } else if (!s3Key.startsWith('jozi-makert-files/')) {
+                s3Key = `jozi-makert-files/${s3Key}`;
+            }
+            
+            const signedUrl = await getDownloadSignedUrl(s3Key, undefined, 3600);
+            return signedUrl;
+        } catch (error) {
+            // If signed URL generation fails, keep original URL
+            console.error(`Failed to generate signed URL:`, error);
+            return fileUrl;
+        }
+    }
 
     private async createToken(userData: IUser): Promise<TokenData> {
         const dataStoredInToken: DataStoreInToken = {
@@ -189,11 +221,29 @@ export class AuthService implements IAuthService {
             throw new HttpException(400, error.message || "Password reset failed");
         }
     }
-    public async findUserById(userId: string): Promise<IUser | null> {
+    public async findUserById(userId: string): Promise<IUser | IVendorWithApplication | null> {
         try {
-            return await this.authRepository.findUserById(userId);
+            const user = await this.authRepository.findUserById(userId);
+            
+            // If user is a vendor with application, enrich vendor logo and banner with signed URLs
+            if (user && (user as IVendorWithApplication).role === "vendor" && (user as IVendorWithApplication).vendorApplication) {
+                const vendor = user as IVendorWithApplication;
+                if (vendor.vendorApplication?.files) {
+                    // Enrich logo URL
+                    if (vendor.vendorApplication.files.logoUrl) {
+                        vendor.vendorApplication.files.logoUrl = await this.enrichFileUrl(vendor.vendorApplication.files.logoUrl) || vendor.vendorApplication.files.logoUrl;
+                    }
+                    // Enrich banner URL
+                    if (vendor.vendorApplication.files.bannerUrl) {
+                        vendor.vendorApplication.files.bannerUrl = await this.enrichFileUrl(vendor.vendorApplication.files.bannerUrl) || vendor.vendorApplication.files.bannerUrl;
+                    }
+                }
+                return vendor;
+            }
+            
+            return user;
         } catch (error) {
-            throw new HttpException(409,error.message)
+            throw new HttpException(409, error.message);
         }
     }
 
@@ -350,5 +400,33 @@ export class AuthService implements IAuthService {
         }
     }
 
-
+    public async getActiveVendorsWithProducts(): Promise<IVendorWithApplication[]> {
+        try {
+            const vendors = await this.authRepository.findActiveVendorsWithProducts();
+            
+            // Enrich vendor logos and banners with signed URLs
+            const enrichedVendors = await Promise.all(
+                vendors.map(async (vendor) => {
+                    if (vendor.vendorApplication?.files) {
+                        // Enrich logo URL
+                        if (vendor.vendorApplication.files.logoUrl) {
+                            vendor.vendorApplication.files.logoUrl = await this.enrichFileUrl(vendor.vendorApplication.files.logoUrl) || vendor.vendorApplication.files.logoUrl;
+                        }
+                        // Enrich banner URL
+                        if (vendor.vendorApplication.files.bannerUrl) {
+                            vendor.vendorApplication.files.bannerUrl = await this.enrichFileUrl(vendor.vendorApplication.files.bannerUrl) || vendor.vendorApplication.files.bannerUrl;
+                        }
+                    }
+                    return vendor;
+                })
+            );
+            
+            return enrichedVendors;
+        } catch (error: any) {
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            throw new HttpException(500, error.message);
+        }
+    }
 }

@@ -4,10 +4,12 @@ import {
   type IOrderRepository,
   ORDER_REPOSITORY_TOKEN,
 } from "@/interfaces/order/IOrderRepository.interface";
+import { Op } from "sequelize";
 import Order from "@/models/order/order.model";
 import OrderItem from "@/models/order-item/orderItem.model";
 import Product from "@/models/product/product.model";
 import ProductVariant from "@/models/product-variant/productVariant.model";
+import User from "@/models/user/user.model";
 import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder } from "@/types/order.types";
 
 @Service({ id: ORDER_REPOSITORY_TOKEN })
@@ -38,8 +40,18 @@ export class OrderRepository implements IOrderRepository {
 
   public async findById(id: string): Promise<IOrder | null> {
     try {
-      const order = await Order.findByPk(id, { raw: true });
-      return order;
+      const order = await Order.findByPk(id, {
+        include: [
+          {
+            model: User,
+            as: "user",
+            required: false,
+            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+          },
+        ],
+        raw: false,
+      });
+      return order ? order.get({ plain: true }) : null;
     } catch (error: any) {
       throw new HttpException(409, error.message);
     }
@@ -49,9 +61,17 @@ export class OrderRepository implements IOrderRepository {
     try {
       const order = await Order.findOne({
         where: { orderNumber },
-        raw: true,
+        include: [
+          {
+            model: User,
+            as: "user",
+            required: false,
+            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+          },
+        ],
+        raw: false,
       });
-      return order;
+      return order ? order.get({ plain: true }) : null;
     } catch (error: any) {
       throw new HttpException(409, error.message);
     }
@@ -61,10 +81,18 @@ export class OrderRepository implements IOrderRepository {
     try {
       const orders = await Order.findAll({
         where: { userId },
-        raw: true,
+        include: [
+          {
+            model: User,
+            as: "user",
+            required: false,
+            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+          },
+        ],
         order: [["createdAt", "DESC"]],
+        raw: false,
       });
-      return orders;
+      return orders.map((order) => order.get({ plain: true }));
     } catch (error: any) {
       throw new HttpException(409, error.message);
     }
@@ -79,10 +107,18 @@ export class OrderRepository implements IOrderRepository {
 
       const orders = await Order.findAll({
         where,
-        raw: true,
+        include: [
+          {
+            model: User,
+            as: "user",
+            required: false,
+            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+          },
+        ],
         order: [["createdAt", "DESC"]],
+        raw: false,
       });
-      return orders;
+      return orders.map((order) => order.get({ plain: true }));
     } catch (error: any) {
       throw new HttpException(409, error.message);
     }
@@ -105,6 +141,18 @@ export class OrderRepository implements IOrderRepository {
       if (updateData.notes !== undefined) updatePayload.notes = updateData.notes;
       if ((updateData as any).totalAmount !== undefined) updatePayload.totalAmount = (updateData as any).totalAmount;
       if ((updateData as any).orderNumber !== undefined) updatePayload.orderNumber = (updateData as any).orderNumber;
+      // Return request fields
+      if ((updateData as any).returnRequestStatus !== undefined) updatePayload.returnRequestStatus = (updateData as any).returnRequestStatus;
+      if ((updateData as any).returnRequestedAt !== undefined) updatePayload.returnRequestedAt = (updateData as any).returnRequestedAt;
+      if ((updateData as any).returnReviewedBy !== undefined) updatePayload.returnReviewedBy = (updateData as any).returnReviewedBy;
+      if ((updateData as any).returnReviewedAt !== undefined) updatePayload.returnReviewedAt = (updateData as any).returnReviewedAt;
+      if ((updateData as any).returnRejectionReason !== undefined) updatePayload.returnRejectionReason = (updateData as any).returnRejectionReason;
+      // Cancellation request fields
+      if ((updateData as any).cancellationRequestStatus !== undefined) updatePayload.cancellationRequestStatus = (updateData as any).cancellationRequestStatus;
+      if ((updateData as any).cancellationRequestedAt !== undefined) updatePayload.cancellationRequestedAt = (updateData as any).cancellationRequestedAt;
+      if ((updateData as any).cancellationReviewedBy !== undefined) updatePayload.cancellationReviewedBy = (updateData as any).cancellationReviewedBy;
+      if ((updateData as any).cancellationReviewedAt !== undefined) updatePayload.cancellationReviewedAt = (updateData as any).cancellationReviewedAt;
+      if ((updateData as any).cancellationRejectionReason !== undefined) updatePayload.cancellationRejectionReason = (updateData as any).cancellationRejectionReason;
 
       await order.update(updatePayload);
       return order.get({ plain: true });
@@ -140,6 +188,12 @@ export class OrderRepository implements IOrderRepository {
       const order = await Order.findByPk(orderId, {
         include: [
           {
+            model: User,
+            as: "user",
+            required: false,
+            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+          },
+          {
             model: OrderItem,
             as: "items",
             required: false,
@@ -162,6 +216,150 @@ export class OrderRepository implements IOrderRepository {
 
       return order ? order.get({ plain: true }) : null;
     } catch (error: any) {
+      throw new HttpException(409, error.message);
+    }
+  }
+
+  public async findByVendorId(vendorId: string): Promise<IOrder[]> {
+    try {
+      // Find orders that have items with products belonging to the vendor
+      // First, get all order items with products from this vendor
+      const orderItems = await OrderItem.findAll({
+        include: [
+          {
+            model: Product,
+            as: "product",
+            required: true,
+            where: {
+              userId: vendorId,
+            },
+            attributes: [], // Don't include product data in this query
+          },
+        ],
+        attributes: ["orderId"],
+        raw: false,
+      });
+
+      // Extract unique order IDs
+      const orderIdsSet = new Set<string>();
+      orderItems.forEach((item) => {
+        const orderId = item.get("orderId") as string;
+        if (orderId) {
+          orderIdsSet.add(orderId);
+        }
+      });
+
+      const orderIds = Array.from(orderIdsSet);
+
+      if (orderIds.length === 0) {
+        return [];
+      }
+
+      // Now fetch the full orders with all their items
+      const orders = await Order.findAll({
+        where: {
+          id: {
+            [Op.in]: orderIds,
+          },
+        },
+        include: [
+          {
+            model: User,
+            as: "user",
+            required: false,
+            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+          },
+          {
+            model: OrderItem,
+            as: "items",
+            required: false,
+            include: [
+              {
+                model: Product,
+                as: "product",
+                required: false,
+              },
+              {
+                model: ProductVariant,
+                as: "variant",
+                required: false,
+              },
+            ],
+          },
+        ],
+        order: [["createdAt", "DESC"]],
+        raw: false,
+      });
+
+      return orders.map((order) => order.get({ plain: true }));
+    } catch (error: any) {
+      throw new HttpException(409, error.message);
+    }
+  }
+
+  public async findOrderItemById(orderItemId: string): Promise<IOrderItem | null> {
+    try {
+      const orderItem = await OrderItem.findByPk(orderItemId, {
+        include: [
+          {
+            model: Product,
+            as: "product",
+            required: false,
+          },
+          {
+            model: ProductVariant,
+            as: "variant",
+            required: false,
+          },
+        ],
+        raw: false,
+      });
+      return orderItem ? orderItem.get({ plain: true }) : null;
+    } catch (error: any) {
+      throw new HttpException(409, error.message);
+    }
+  }
+
+  public async updateOrderItem(orderItemId: string, updateData: Partial<IOrderItem>): Promise<IOrderItem> {
+    try {
+      const orderItem = await OrderItem.findByPk(orderItemId);
+      if (!orderItem) {
+        throw new HttpException(404, "Order item not found");
+      }
+
+      const updatePayload: any = {};
+      if (updateData.returnRequestStatus !== undefined) updatePayload.returnRequestStatus = updateData.returnRequestStatus;
+      if (updateData.returnRequestedAt !== undefined) updatePayload.returnRequestedAt = updateData.returnRequestedAt;
+      if (updateData.returnQuantity !== undefined) updatePayload.returnQuantity = updateData.returnQuantity;
+      if (updateData.returnReason !== undefined) updatePayload.returnReason = updateData.returnReason;
+      if (updateData.returnReviewedBy !== undefined) updatePayload.returnReviewedBy = updateData.returnReviewedBy;
+      if (updateData.returnReviewedAt !== undefined) updatePayload.returnReviewedAt = updateData.returnReviewedAt;
+      if (updateData.returnRejectionReason !== undefined) updatePayload.returnRejectionReason = updateData.returnRejectionReason;
+
+      await orderItem.update(updatePayload);
+
+      // Fetch updated order item with relations
+      const updatedItem = await OrderItem.findByPk(orderItemId, {
+        include: [
+          {
+            model: Product,
+            as: "product",
+            required: false,
+          },
+          {
+            model: ProductVariant,
+            as: "variant",
+            required: false,
+          },
+        ],
+        raw: false,
+      });
+
+      return updatedItem ? updatedItem.get({ plain: true }) : orderItem.get({ plain: true });
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(409, error.message);
     }
   }

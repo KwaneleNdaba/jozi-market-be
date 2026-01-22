@@ -8,7 +8,8 @@ import { PRODUCT_REPOSITORY_TOKEN } from "@/interfaces/product/IProductRepositor
 import type { IProductRepository } from "@/interfaces/product/IProductRepository.interface";
 import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import type { IProductService } from "@/interfaces/product/IProductService.interface";
-import type { IOrder, ICreateOrder, IUpdateOrder } from "@/types/order.types";
+import type { IOrder, ICreateOrder, IUpdateOrder, IRequestReturn, IRequestCancellation, IReviewReturn, IReviewCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IRequestItemReturn, IReviewItemReturn, IOrderItem } from "@/types/order.types";
+import { ReturnRequestStatus, CancellationRequestStatus } from "@/types/order.types";
 import Order from "@/models/order/order.model";
 import dbConnection from "@/database";
 
@@ -196,28 +197,57 @@ export class OrderService implements IOrderService {
     try {
       const orders = await this.orderRepository.findByUserId(userId);
 
+      if (!orders || orders.length === 0) {
+        return [];
+      }
+
       // Enrich each order with items (with signed URLs)
       const enrichedOrders = await Promise.all(
         orders.map(async (order) => {
           const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
-          if (orderWithItems && orderWithItems.items) {
+          
+          if (!orderWithItems) {
+            // If order not found with items, return the basic order with empty items array
+            return {
+              ...order,
+              items: [],
+            };
+          }
+
+          // Enrich items with product details (with signed URLs)
+          if (orderWithItems.items && orderWithItems.items.length > 0) {
             const enrichedItems = await Promise.all(
               orderWithItems.items.map(async (item) => {
-                const product = await this.productService.getProductById(item.productId);
-                return {
-                  ...item,
-                  product: product || undefined,
-                };
+                try {
+                  const product = await this.productService.getProductById(item.productId);
+                  return {
+                    ...item,
+                    product: product || undefined,
+                  };
+                } catch (error) {
+                  // If product fetch fails, return item without product
+                  return {
+                    ...item,
+                    product: undefined,
+                  };
+                }
               })
             );
             orderWithItems.items = enrichedItems;
+          } else {
+            // Ensure items array exists even if empty
+            orderWithItems.items = [];
           }
-          return orderWithItems || order;
+
+          return orderWithItems;
         })
       );
 
       return enrichedOrders;
     } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(500, error.message);
     }
   }
@@ -278,7 +308,346 @@ export class OrderService implements IOrderService {
         orderWithItems.items = enrichedItems;
       }
 
-      return orderWithItems || updatedOrder;
+      return orderWithItems!;
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async requestReturn(requestData: IRequestReturn): Promise<IOrder> {
+    try {
+      const order = await this.orderRepository.findById(requestData.orderId);
+      if (!order) {
+        throw new HttpException(404, "Order not found");
+      }
+
+      // Only delivered orders can request returns
+      if (order.status !== "delivered") {
+        throw new HttpException(400, "Only delivered orders can request returns");
+      }
+
+      // Check if return already requested
+      if (order.returnRequestStatus) {
+        throw new HttpException(400, "Return request already exists for this order");
+      }
+
+      const updatedOrder = await this.orderRepository.update({
+        id: requestData.orderId,
+        returnRequestStatus: ReturnRequestStatus.PENDING,
+        returnRequestedAt: new Date(),
+        notes: requestData.reason ? `${order.notes || ''}\nReturn reason: ${requestData.reason}`.trim() : order.notes,
+      } as any);
+
+      return await this.getOrderById(updatedOrder.id!);
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async requestCancellation(requestData: IRequestCancellation): Promise<IOrder> {
+    try {
+      const order = await this.orderRepository.findById(requestData.orderId);
+      if (!order) {
+        throw new HttpException(404, "Order not found");
+      }
+
+      // Only pending or processing orders can request cancellation
+      if (order.status !== "pending" && order.status !== "processing") {
+        throw new HttpException(400, "Only pending or processing orders can request cancellation");
+      }
+
+      // Check if cancellation already requested
+      if (order.cancellationRequestStatus) {
+        throw new HttpException(400, "Cancellation request already exists for this order");
+      }
+
+      const updatedOrder = await this.orderRepository.update({
+        id: requestData.orderId,
+        cancellationRequestStatus: CancellationRequestStatus.PENDING,
+        cancellationRequestedAt: new Date(),
+        notes: requestData.reason ? `${order.notes || ''}\nCancellation reason: ${requestData.reason}`.trim() : order.notes,
+      } as any);
+
+      return await this.getOrderById(updatedOrder.id!);
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async reviewReturn(reviewData: IReviewReturn): Promise<IOrder> {
+    try {
+      const order = await this.orderRepository.findById(reviewData.orderId);
+      if (!order) {
+        throw new HttpException(404, "Order not found");
+      }
+
+      if (!order.returnRequestStatus || order.returnRequestStatus !== ReturnRequestStatus.PENDING) {
+        throw new HttpException(400, "No pending return request found for this order");
+      }
+
+      const updateData: any = {
+        id: reviewData.orderId,
+        returnRequestStatus: reviewData.status,
+        returnReviewedBy: reviewData.reviewedBy,
+        returnReviewedAt: new Date(),
+        returnRejectionReason: reviewData.status === ReturnRequestStatus.REJECTED ? reviewData.rejectionReason : null,
+      };
+
+      // If return is approved, update order status to returned
+      if (reviewData.status === ReturnRequestStatus.APPROVED) {
+        updateData.status = "returned";
+      }
+
+      const updatedOrder = await this.orderRepository.update(updateData);
+
+      return await this.getOrderById(updatedOrder.id!);
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async reviewCancellation(reviewData: IReviewCancellation): Promise<IOrder> {
+    try {
+      const order = await this.orderRepository.findById(reviewData.orderId);
+      if (!order) {
+        throw new HttpException(404, "Order not found");
+      }
+
+      if (!order.cancellationRequestStatus || order.cancellationRequestStatus !== CancellationRequestStatus.PENDING) {
+        throw new HttpException(400, "No pending cancellation request found for this order");
+      }
+
+      const updateData: any = {
+        id: reviewData.orderId,
+        cancellationRequestStatus: reviewData.status,
+        cancellationReviewedBy: reviewData.reviewedBy,
+        cancellationReviewedAt: new Date(),
+        cancellationRejectionReason: reviewData.status === CancellationRequestStatus.REJECTED ? reviewData.rejectionReason : null,
+      };
+
+      // If cancellation is approved, update order status to cancelled
+      if (reviewData.status === CancellationRequestStatus.APPROVED) {
+        updateData.status = "cancelled";
+      }
+
+      const updatedOrder = await this.orderRepository.update(updateData);
+
+      return await this.getOrderById(updatedOrder.id!);
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async getOrdersByVendorId(vendorId: string): Promise<IVendorOrdersResponse> {
+    try {
+      // Get all orders that contain products from this vendor
+      const orders = await this.orderRepository.findByVendorId(vendorId);
+
+      if (!orders || orders.length === 0) {
+        return {
+          vendorId,
+          groupedOrders: [],
+          totalOrders: 0,
+          totalAmount: 0,
+        };
+      }
+
+      // Enrich each order with items and products (with signed URLs)
+      const enrichedOrders = await Promise.all(
+        orders.map(async (order) => {
+          const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
+          
+          if (!orderWithItems) {
+            return {
+              ...order,
+              items: [],
+            };
+          }
+
+          // Enrich items with product details (with signed URLs)
+          if (orderWithItems.items && orderWithItems.items.length > 0) {
+            const enrichedItems = await Promise.all(
+              orderWithItems.items.map(async (item) => {
+                try {
+                  const product = await this.productService.getProductById(item.productId);
+                  return {
+                    ...item,
+                    product: product || undefined,
+                  };
+                } catch (error) {
+                  return {
+                    ...item,
+                    product: undefined,
+                  };
+                }
+              })
+            );
+            orderWithItems.items = enrichedItems;
+          } else {
+            orderWithItems.items = [];
+          }
+
+          return orderWithItems;
+        })
+      );
+
+      // Group orders by date (YYYY-MM-DD format)
+      const ordersByDate = new Map<string, IOrder[]>();
+      
+      enrichedOrders.forEach((order) => {
+        if (order.createdAt) {
+          const date = new Date(order.createdAt);
+          const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+          
+          if (!ordersByDate.has(dateKey)) {
+            ordersByDate.set(dateKey, []);
+          }
+          ordersByDate.get(dateKey)!.push(order);
+        }
+      });
+
+      // Convert map to array and calculate totals for each date group
+      const groupedOrders: IOrdersGroupedByDate[] = Array.from(ordersByDate.entries())
+        .map(([date, orders]) => {
+          const totalAmount = orders.reduce((sum, order) => {
+            return sum + parseFloat(order.totalAmount.toString());
+          }, 0);
+
+          return {
+            date,
+            orders: orders.sort((a, b) => {
+              // Sort orders within each date by createdAt (newest first)
+              const dateA = new Date(a.createdAt || 0).getTime();
+              const dateB = new Date(b.createdAt || 0).getTime();
+              return dateB - dateA;
+            }),
+            totalOrders: orders.length,
+            totalAmount,
+          };
+        })
+        .sort((a, b) => {
+          // Sort date groups by date (newest first)
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        });
+
+      // Calculate overall totals
+      const totalOrders = enrichedOrders.length;
+      const totalAmount = enrichedOrders.reduce((sum, order) => {
+        return sum + parseFloat(order.totalAmount.toString());
+      }, 0);
+
+      return {
+        vendorId,
+        groupedOrders,
+        totalOrders,
+        totalAmount,
+      };
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async requestItemReturn(requestData: IRequestItemReturn): Promise<IOrderItem> {
+    try {
+      // Verify order exists and belongs to user
+      const order = await this.orderRepository.findById(requestData.orderId);
+      if (!order) {
+        throw new HttpException(404, "Order not found");
+      }
+
+      // Only delivered orders can have items returned
+      if (order.status !== "delivered") {
+        throw new HttpException(400, "Only delivered orders can have items returned");
+      }
+
+      // Get the order item
+      const orderItem = await this.orderRepository.findOrderItemById(requestData.orderItemId);
+      if (!orderItem) {
+        throw new HttpException(404, "Order item not found");
+      }
+
+      // Verify the item belongs to the order
+      if (orderItem.orderId !== requestData.orderId) {
+        throw new HttpException(400, "Order item does not belong to this order");
+      }
+
+      // Check if return already requested
+      if (orderItem.returnRequestStatus) {
+        throw new HttpException(400, "Return request already exists for this item");
+      }
+
+      // Validate return quantity
+      if (requestData.returnQuantity <= 0 || requestData.returnQuantity > orderItem.quantity) {
+        throw new HttpException(400, `Return quantity must be between 1 and ${orderItem.quantity}`);
+      }
+
+      // Update order item with return request
+      const updatedItem = await this.orderRepository.updateOrderItem(requestData.orderItemId, {
+        returnRequestStatus: ReturnRequestStatus.PENDING,
+        returnRequestedAt: new Date(),
+        returnQuantity: requestData.returnQuantity,
+        returnReason: requestData.reason || null,
+      });
+
+      return updatedItem;
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async reviewItemReturn(reviewData: IReviewItemReturn): Promise<IOrderItem> {
+    try {
+      // Verify order exists
+      const order = await this.orderRepository.findById(reviewData.orderId);
+      if (!order) {
+        throw new HttpException(404, "Order not found");
+      }
+
+      // Get the order item
+      const orderItem = await this.orderRepository.findOrderItemById(reviewData.orderItemId);
+      if (!orderItem) {
+        throw new HttpException(404, "Order item not found");
+      }
+
+      // Verify the item belongs to the order
+      if (orderItem.orderId !== reviewData.orderId) {
+        throw new HttpException(400, "Order item does not belong to this order");
+      }
+
+      if (!orderItem.returnRequestStatus || orderItem.returnRequestStatus !== ReturnRequestStatus.PENDING) {
+        throw new HttpException(400, "No pending return request found for this item");
+      }
+
+      // Update order item with review decision
+      const updatedItem = await this.orderRepository.updateOrderItem(reviewData.orderItemId, {
+        returnRequestStatus: reviewData.status,
+        returnReviewedBy: reviewData.reviewedBy,
+        returnReviewedAt: new Date(),
+        returnRejectionReason: reviewData.status === ReturnRequestStatus.REJECTED ? reviewData.rejectionReason : null,
+      });
+
+      return updatedItem;
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;

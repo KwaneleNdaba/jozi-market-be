@@ -6,9 +6,12 @@ import {
   AUTH_REPOSITORY_TOKEN,
   type IAuthRepository,
 } from "@/interfaces/auth/IAuthRepository .interface";
+import { Sequelize, Op } from "sequelize";
 import RefreshToken from "@/models/user/refreshToken.model";
 import User from "@/models/user/user.model";
-import { type IUpdatePassword, type IUser, TokenData } from "@/types/auth.types";
+import VendorApplication from "@/models/vendor-application/vendorApplication.model";
+import Product from "@/models/product/product.model";
+import { type IUpdatePassword, type IUser, TokenData, type IVendorWithApplication } from "@/types/auth.types";
 
 @Service({ id: AUTH_REPOSITORY_TOKEN })
 export class AuthRepository implements IAuthRepository {
@@ -46,9 +49,71 @@ export class AuthRepository implements IAuthRepository {
     }
   }
 
-  public async findUserById(userId: string): Promise<IUser | null> {
+  public async findUserById(userId: string): Promise<IUser | IVendorWithApplication | null> {
     try {
-      return await User.findByPk(userId, { raw: true });
+      const user = await User.findByPk(userId, {
+        include: [
+          {
+            model: VendorApplication,
+            as: "applicant",
+            required: false,
+            where: {
+              status: "approved",
+            },
+            order: [["submittedAt", "DESC"]],
+            limit: 1,
+          },
+        ],
+        raw: false,
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      const userData = user.get({ plain: true });
+
+      // If user is a vendor, include vendor application
+      if (userData.role === "vendor") {
+        let vendorApplication = null;
+        if (userData.applicant && Array.isArray(userData.applicant) && userData.applicant.length > 0) {
+          vendorApplication = userData.applicant[0];
+        } else if (userData.applicant) {
+          vendorApplication = userData.applicant;
+        } else {
+          // Fallback: get most recent approved application
+          const app = await VendorApplication.findOne({
+            where: {
+              userId: user.id,
+              status: "approved",
+            },
+            order: [["submittedAt", "DESC"]],
+            raw: false,
+          });
+          vendorApplication = app ? app.get({ plain: true }) : null;
+        }
+
+        // Get product count
+        const productCount = await Product.count({
+          where: {
+            userId: user.id,
+            status: "Active",
+          },
+        });
+
+        // Remove the applicant array from userData and add vendorApplication
+        const { applicant, ...userWithoutApplicant } = userData;
+
+        return {
+          ...userWithoutApplicant,
+          vendorApplication,
+          productCount,
+        } as IVendorWithApplication;
+      }
+
+      // For non-vendors, return user data without applicant array
+      const { applicant, ...userWithoutApplicant } = userData;
+      return userWithoutApplicant as IUser;
     } catch (error) {
       throw new HttpException(409, error.message);
     }
@@ -492,6 +557,115 @@ export class AuthRepository implements IAuthRepository {
       return newUser.get({ plain: true });
     } catch (error: any) {
       throw new HttpException(409, error.message);
+    }
+  }
+
+  public async findActiveVendorsWithProducts(): Promise<IVendorWithApplication[]> {
+    try {
+      // Find vendors with active stores who have at least one product
+      // First, get distinct vendor IDs that have products
+      const vendorsWithProducts = await Product.findAll({
+        attributes: ["userId"],
+        where: {
+          status: "Active",
+        },
+        group: ["userId"],
+        raw: true,
+      });
+
+      const vendorIds = vendorsWithProducts.map((p: any) => p.userId);
+
+      if (vendorIds.length === 0) {
+        return [];
+      }
+
+      // Now get vendors with active stores and their applications
+      const vendors = await User.findAll({
+        where: {
+          id: {
+            [Op.in]: vendorIds,
+          },
+          role: "vendor",
+          isStoreActive: true,
+        },
+        include: [
+          {
+            model: VendorApplication,
+            as: "applicant",
+            required: false,
+            where: {
+              status: "approved",
+            },
+            order: [["submittedAt", "DESC"]],
+            limit: 1,
+          },
+        ],
+        attributes: [
+          "id",
+          "fullName",
+          "email",
+          "phone",
+          "role",
+          "isStoreActive",
+          "profileUrl",
+          "address",
+          "isAccountBlocked",
+          "canReview",
+          "isPhoneConfirmed",
+          "isEmailConfirmed",
+          "createdAt",
+          "updatedAt",
+        ],
+        raw: false,
+        order: [["createdAt", "DESC"]],
+      });
+
+      // Transform to include product count and most recent approved application
+      const vendorsWithData = await Promise.all(
+        vendors.map(async (vendor) => {
+          const vendorData = vendor.get({ plain: true });
+          
+          // Get product count
+          const productCount = await Product.count({
+            where: {
+              userId: vendor.id,
+              status: "Active",
+            },
+          });
+
+          // Get most recent approved application
+          let vendorApplication = null;
+          if (vendorData.applicant && Array.isArray(vendorData.applicant) && vendorData.applicant.length > 0) {
+            vendorApplication = vendorData.applicant[0];
+          } else if (vendorData.applicant) {
+            vendorApplication = vendorData.applicant;
+          } else {
+            // Fallback: get most recent approved application
+            const app = await VendorApplication.findOne({
+              where: {
+                userId: vendor.id,
+                status: "approved",
+              },
+              order: [["submittedAt", "DESC"]],
+              raw: false,
+            });
+            vendorApplication = app ? app.get({ plain: true }) : null;
+          }
+
+          // Remove the applicant array from vendorData and add vendorApplication
+          const { applicant, ...vendorWithoutApplicant } = vendorData;
+
+          return {
+            ...vendorWithoutApplicant,
+            vendorApplication,
+            productCount,
+          };
+        })
+      );
+
+      return vendorsWithData;
+    } catch (error: any) {
+      throw new HttpException(500, error.message);
     }
   }
 }

@@ -61,3 +61,8 @@ export type IUserLogin = {
   email: string;
   password: string;
 };
+
+export interface IVendorWithApplication extends IUser {
+  vendorApplication?: import("./vendor.types").IVendorApplication;
+  productCount?: number;
+}

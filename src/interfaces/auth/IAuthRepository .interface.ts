@@ -1,13 +1,13 @@
 import { Token } from "typedi";
 import type RefreshToken from "@/models/user/refreshToken.model";
-import { type IUpdatePassword, type IUser, TokenData } from "@/types/auth.types";
+import { type IUpdatePassword, type IUser, TokenData, type IVendorWithApplication } from "@/types/auth.types";
 
 export interface IAuthRepository {
   findUserByEmail(email: string): Promise<IUser | null>;
   createUser(userData: Partial<IUser>): Promise<IUser>;
   saveRefreshToken(userId: string, token: string, expiresAt: Date): Promise<void>;
   findRefreshToken(token: string): Promise<RefreshToken | null>;
-  findUserById(userId: string): Promise<IUser | null>;
+  findUserById(userId: string): Promise<IUser | IVendorWithApplication | null>;
   deleteRefreshToken(tokenId: string): Promise<void>;
   updateUser(userData: Partial<IUser>): Promise<IUser>;
   findById(userId: string): Promise<IUser>;
@@ -35,6 +35,7 @@ export interface IAuthRepository {
     profileUrl?: string;
     phone?: string;
   }): Promise<IUser>;
+  findActiveVendorsWithProducts(): Promise<IVendorWithApplication[]>;
 }
 
 export const AUTH_REPOSITORY_TOKEN = new Token<IAuthRepository>("IAuthRepository");

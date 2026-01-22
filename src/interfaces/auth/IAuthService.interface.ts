@@ -1,5 +1,5 @@
 import { Token } from "typedi";
-import type { IUpdatePassword, IUser, TokenData } from "@/types/auth.types";
+import type { IUpdatePassword, IUser, TokenData, IVendorWithApplication } from "@/types/auth.types";
 
 export interface IAuthService {
   signup(userData: IUser): Promise<TokenData>;
@@ -16,7 +16,7 @@ export interface IAuthService {
   deactivateStore(userId: string): Promise<IUser>;
   findAllStaff(): Promise<IUser[]>;
   deleteUser(userId: string): Promise<void>;
-  findUserById(userId: string): Promise<IUser | null>;
+  findUserById(userId: string): Promise<IUser | IVendorWithApplication | null>;
   findAllDrivers(): Promise<IUser[]>;
   updateOldPassword(params: IUpdatePassword): Promise<IUser>;
   handleGoogleOAuth(profile: {
@@ -31,6 +31,7 @@ export interface IAuthService {
     displayName: string;
     photos?: Array<{ value: string }>;
   }): Promise<TokenData>;
+  getActiveVendorsWithProducts(): Promise<IVendorWithApplication[]>;
 }
 
 export const AUTH_SERVICE_TOKEN = new Token<IAuthService>("IAuthService");

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import passport from "passport";
 import { CreateUserDto } from "@/dots/auth/user.dot";
-import { authorizationMiddleware } from "@/middlewares/authorizationMiddleware";
+import { adminOrVendorAuthorizationMiddleware, authorizationMiddleware } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
 import type { Routes } from "@/types/routes.interface";
 import { AuthController } from "../../controllers/auth/auth.controller";
@@ -39,9 +39,9 @@ export class AuthRoute implements Routes {
       this.auth.updateProfile
     );
     this.router.get(`${this.path}/getAllUsers`, authorizationMiddleware, this.auth.getAllUsers);
+
     this.router.get(
       `${this.path}/getUser/:userId`,
-      authorizationMiddleware,
       this.auth.finduserById
     );
     this.router.get(
@@ -62,18 +62,24 @@ export class AuthRoute implements Routes {
     );
     this.router.put(
       `${this.path}/:userId/store/activate`,
-      authorizationMiddleware,
+      adminOrVendorAuthorizationMiddleware,
       this.auth.activateStore
     );
     this.router.put(
       `${this.path}/:userId/store/deactivate`,
-      authorizationMiddleware,
+      adminOrVendorAuthorizationMiddleware,
       this.auth.deactivateStore
     );
     this.router.delete(
       `${this.path}/:userId/delete`,
       authorizationMiddleware,
       this.auth.deleteUser
+    );
+
+    // Get active vendors with products (public endpoint)
+    this.router.get(
+      `${this.path}/vendors/active`,
+      this.auth.getActiveVendorsWithProducts
     );
 
     // Google OAuth routes

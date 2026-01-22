@@ -375,4 +375,46 @@ export function setupAssociations() {
     onDelete: "CASCADE",
     onUpdate: "CASCADE",
   });
+
+  // Order - User (return reviewer) relationship
+  Order.belongsTo(User, {
+    foreignKey: "returnReviewedBy",
+    as: "returnReviewer",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(Order, {
+    foreignKey: "returnReviewedBy",
+    as: "returnReviewedOrders",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+
+  // Order - User (cancellation reviewer) relationship
+  Order.belongsTo(User, {
+    foreignKey: "cancellationReviewedBy",
+    as: "cancellationReviewer",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(Order, {
+    foreignKey: "cancellationReviewedBy",
+    as: "cancellationReviewedOrders",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+
+  // OrderItem - User (return reviewer) relationship
+  OrderItem.belongsTo(User, {
+    foreignKey: "returnReviewedBy",
+    as: "returnReviewer",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(OrderItem, {
+    foreignKey: "returnReviewedBy",
+    as: "itemReturnReviewedOrders",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
 }

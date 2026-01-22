@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { CreateOrderDto, UpdateOrderDto } from "@/dots/order/order.dot";
+import { CreateOrderDto, UpdateOrderDto, RequestReturnDto, RequestCancellationDto, ReviewReturnDto, ReviewCancellationDto, RequestItemReturnDto, ReviewItemReturnDto } from "@/dots/order/order.dot";
 import { authorizationMiddleware, adminAuthorizationMiddleware } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
 import type { Routes } from "@/types/routes.interface";
@@ -23,25 +23,81 @@ export class OrderRoute implements Routes {
       this.order.createOrder
     );
 
-    // Get order by ID (authenticated users only - can access own orders)
+    // Get my orders (authenticated users only) - MUST come before /:id route
     this.router.get(
-      `${this.path}/:id`,
+      `${this.path}/my-orders`,
       authorizationMiddleware,
-      this.order.getOrderById
+      this.order.getMyOrders
     );
 
-    // Get order by order number (authenticated users only)
+    // Get orders by vendor ID (grouped by date) - MUST come before /:id route
+    this.router.get(
+      `${this.path}/vendor/:vendorId`,
+      authorizationMiddleware,
+      this.order.getOrdersByVendorId
+    );
+
+    // Get order by order number (authenticated users only) - MUST come before /:id route
     this.router.get(
       `${this.path}/number/:orderNumber`,
       authorizationMiddleware,
       this.order.getOrderByOrderNumber
     );
 
-    // Get my orders (authenticated users only)
-    this.router.get(
-      `${this.path}/my-orders`,
+    // Request return (authenticated users only) - MUST come before /:id route
+    this.router.post(
+      `${this.path}/return`,
       authorizationMiddleware,
-      this.order.getMyOrders
+      ValidationMiddleware(RequestReturnDto),
+      this.order.requestReturn
+    );
+
+    // Request cancellation (authenticated users only) - MUST come before /:id route
+    this.router.post(
+      `${this.path}/cancellation`,
+      authorizationMiddleware,
+      ValidationMiddleware(RequestCancellationDto),
+      this.order.requestCancellation
+    );
+
+    // Review return request (admin only) - MUST come before /:id route
+    this.router.put(
+      `${this.path}/return/review`,
+      adminAuthorizationMiddleware,
+      ValidationMiddleware(ReviewReturnDto),
+      this.order.reviewReturn
+    );
+
+    // Review cancellation request (admin only) - MUST come before /:id route
+    this.router.put(
+      `${this.path}/cancellation/review`,
+      adminAuthorizationMiddleware,
+      ValidationMiddleware(ReviewCancellationDto),
+      this.order.reviewCancellation
+    );
+
+    // Request item return (authenticated users only) - MUST come before /:id route
+    this.router.post(
+      `${this.path}/item/return`,
+      authorizationMiddleware,
+      ValidationMiddleware(RequestItemReturnDto),
+      this.order.requestItemReturn
+    );
+
+    // Review item return request (admin only) - MUST come before /:id route
+    this.router.put(
+      `${this.path}/item/return/review`,
+      adminAuthorizationMiddleware,
+      ValidationMiddleware(ReviewItemReturnDto),
+      this.order.reviewItemReturn
+    );
+
+    // Get order by ID (authenticated users only - can access own orders)
+    // This must come AFTER all specific routes
+    this.router.get(
+      `${this.path}/:id`,
+      authorizationMiddleware,
+      this.order.getOrderById
     );
 
     // Get all orders (admin only)

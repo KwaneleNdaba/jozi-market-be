@@ -27,7 +27,6 @@ export class ProductRoute implements Routes {
     // IMPORTANT: This route must come before /:id to avoid route conflicts
     this.router.get(
       `${this.path}/user/:userId`,
-      vendorAuthorizationMiddleware,
       this.product.getProductsByUserId
     );
 

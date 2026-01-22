@@ -340,8 +340,8 @@ export class SubscriptionTransactionService implements ISubscriptionTransactionS
     email: string;
   }): string {
 
-    const returnUrl = `${process.env.PAYFAST_RETURN_URL}/vendor/dashboard/?paymentReference=${params.paymentReference}&status=success`;
-    const cancelUrl = `${process.env.PAYFAST_CANCEL_URL || process.env.PAYFAST_RETURN_URL}/vendor/subscription?paymentReference=${params.paymentReference}&status=cancelled`;
+    const returnUrl = `${process.env.PAYFAST_RETURN_URL}/vendor/subscription/success?subscriptionId=${params.paymentReference}`;
+    const cancelUrl = `${process.env.PAYFAST_CANCEL_URL || process.env.PAYFAST_RETURN_URL}/vendor/subscription/failed?subscriptionId=${params.paymentReference}`;
 
     const itemName = `Subscription #${params.planName}`;
 

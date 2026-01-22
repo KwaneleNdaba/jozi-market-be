@@ -10,6 +10,9 @@ export interface IOrderRepository {
   update(updateData: IUpdateOrder): Promise<IOrder>;
   createOrderItem(orderId: string, itemData: Omit<IOrderItem, "id" | "orderId" | "createdAt" | "updatedAt">): Promise<IOrderItem>;
   getOrderWithItems(orderId: string): Promise<IOrder | null>;
+  findByVendorId(vendorId: string): Promise<IOrder[]>;
+  findOrderItemById(orderItemId: string): Promise<IOrderItem | null>;
+  updateOrderItem(orderItemId: string, updateData: Partial<IOrderItem>): Promise<IOrderItem>;
 }
 
 export const ORDER_REPOSITORY_TOKEN = new Token<IOrderRepository>("IOrderRepository");
