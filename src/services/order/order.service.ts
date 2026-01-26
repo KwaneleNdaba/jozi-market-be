@@ -428,25 +428,6 @@ export class OrderService implements IOrderService {
           );
         }
 
-        // Special case: If setting to DELIVERED, verify all items are delivered
-        if (newStatus === OrderStatus.DELIVERED) {
-          const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
-          if (orderWithItems && orderWithItems.items) {
-            const activeItems = orderWithItems.items.filter(
-              (item) => item.status !== OrderItemStatus.CANCELLED && item.status !== OrderItemStatus.REJECTED
-            );
-            const allItemsDelivered = activeItems.length > 0 && activeItems.every(
-              (item) => item.status === OrderItemStatus.DELIVERED
-            );
-            
-            if (!allItemsDelivered) {
-              throw new HttpException(
-                400,
-                "Cannot set order to delivered. All active order items must be delivered first."
-              );
-            }
-          }
-        }
       }
 
       // If status is not explicitly set, recalculate based on items
