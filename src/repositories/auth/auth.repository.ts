@@ -6,7 +6,7 @@ import {
   AUTH_REPOSITORY_TOKEN,
   type IAuthRepository,
 } from "@/interfaces/auth/IAuthRepository .interface";
-import { Sequelize, Op } from "sequelize";
+import { Op } from "sequelize";
 import RefreshToken from "@/models/user/refreshToken.model";
 import User from "@/models/user/user.model";
 import VendorApplication from "@/models/vendor-application/vendorApplication.model";

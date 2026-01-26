@@ -16,6 +16,8 @@ import Cart from "@/models/cart/cart.model";
 import CartItem from "@/models/cart-item/cartItem.model";
 import Order from "@/models/order/order.model";
 import OrderItem from "@/models/order-item/orderItem.model";
+import Return from "@/models/return/return.model";
+import ReturnItem from "@/models/return-item/returnItem.model";
 import { DB_HOST, DB_NAME, DB_PASSWORD, DB_USER } from "../config";
 import User from "../models/user/user.model";
 import { setupAssociations } from "./associations";
@@ -82,6 +84,8 @@ Cart.initialize(dbConnection);
 CartItem.initialize(dbConnection);
 Order.initialize(dbConnection);
 OrderItem.initialize(dbConnection);
+Return.initialize(dbConnection);
+ReturnItem.initialize(dbConnection);
 
 setupAssociations();
 const syncDatabase = async () => {

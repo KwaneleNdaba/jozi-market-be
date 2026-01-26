@@ -2,14 +2,17 @@ import { Inject, Service } from "typedi";
 import { HttpException } from "@/exceptions/HttpException";
 import { type IOrderRepository, ORDER_REPOSITORY_TOKEN } from "@/interfaces/order/IOrderRepository.interface";
 import { type IOrderService, ORDER_SERVICE_TOKEN } from "@/interfaces/order/IOrderService.interface";
+import { RETURN_REPOSITORY_TOKEN } from "@/interfaces/return/IReturnRepository.interface";
+import type { IReturnRepository } from "@/interfaces/return/IReturnRepository.interface";
 import { CART_REPOSITORY_TOKEN } from "@/interfaces/cart/ICartRepository.interface";
 import type { ICartRepository } from "@/interfaces/cart/ICartRepository.interface";
 import { PRODUCT_REPOSITORY_TOKEN } from "@/interfaces/product/IProductRepository.interface";
 import type { IProductRepository } from "@/interfaces/product/IProductRepository.interface";
 import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import type { IProductService } from "@/interfaces/product/IProductService.interface";
-import type { IOrder, ICreateOrder, IUpdateOrder, IRequestReturn, IRequestCancellation, IReviewReturn, IReviewCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IRequestItemReturn, IReviewItemReturn, IOrderItem, IOrderItemsGroupedResponse, IOrderItemsByVendorAndDate, IOrderItemWithDetails } from "@/types/order.types";
+import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IReviewCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IOrderItem, IOrderItemsGroupedResponse, IOrderItemsByVendorAndDate, IOrderItemWithDetails } from "@/types/order.types";
 import { OrderStatus, OrderItemStatus, PaymentStatus } from "@/types/order.types";
+import { ReturnStatus } from "@/types/return.types";
 import Order from "@/models/order/order.model";
 import dbConnection from "@/database";
 
@@ -17,6 +20,7 @@ import dbConnection from "@/database";
 export class OrderService implements IOrderService {
   constructor(
     @Inject(ORDER_REPOSITORY_TOKEN) private readonly orderRepository: IOrderRepository,
+    @Inject(RETURN_REPOSITORY_TOKEN) private readonly returnRepository: IReturnRepository,
     @Inject(CART_REPOSITORY_TOKEN) private readonly cartRepository: ICartRepository,
     @Inject(PRODUCT_REPOSITORY_TOKEN) private readonly productRepository: IProductRepository,
     @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService
@@ -73,18 +77,9 @@ export class OrderService implements IOrderService {
       return OrderStatus.READY_TO_SHIP;
     }
 
-    // Check if any items are in return flow
-    const hasReturnItems = items.some(
-      (item) =>
-        item.status === OrderItemStatus.RETURN_REQUESTED ||
-        item.status === OrderItemStatus.RETURN_APPROVED ||
-        item.status === OrderItemStatus.RETURN_IN_TRANSIT ||
-        item.status === OrderItemStatus.RETURN_RECEIVED
-    );
-
-    if (hasReturnItems) {
-      return OrderStatus.RETURN_IN_PROGRESS;
-    }
+    // Note: Returns are tracked separately in Return model
+    // Order status remains "delivered" when returns exist
+    // Check Return model separately to determine return status
 
     // Check if any items are in processing states (processing, picked)
     // This means vendor is actively working on the order
@@ -406,18 +401,15 @@ export class OrderService implements IOrderService {
         const newStatus = updateData.status as OrderStatus;
 
         // Define allowed status transitions
+        // Note: Returns are tracked separately in Return model, not in Order status
         const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
           [OrderStatus.PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
           [OrderStatus.CONFIRMED]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
           [OrderStatus.PROCESSING]: [OrderStatus.READY_TO_SHIP, OrderStatus.CANCELLED],
           [OrderStatus.READY_TO_SHIP]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
           [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED],
-          [OrderStatus.DELIVERED]: [OrderStatus.RETURN_IN_PROGRESS],
+          [OrderStatus.DELIVERED]: [], // Delivered is final (returns handled via Return model)
           [OrderStatus.CANCELLED]: [], // Cannot transition from cancelled
-          [OrderStatus.RETURN_IN_PROGRESS]: [OrderStatus.RETURNED, OrderStatus.DELIVERED], // Can revert if return rejected
-          [OrderStatus.RETURNED]: [OrderStatus.REFUND_PENDING],
-          [OrderStatus.REFUND_PENDING]: [OrderStatus.REFUNDED],
-          [OrderStatus.REFUNDED]: [], // Final state
         };
 
         // Validate transition
@@ -464,39 +456,6 @@ export class OrderService implements IOrderService {
     }
   }
 
-  public async requestReturn(requestData: IRequestReturn): Promise<IOrder> {
-    try {
-      const order = await this.orderRepository.findById(requestData.orderId);
-      if (!order) {
-        throw new HttpException(404, "Order not found");
-      }
-
-      // Only delivered orders can request returns
-      if (order.status !== OrderStatus.DELIVERED) {
-        throw new HttpException(400, "Only delivered orders can request returns");
-      }
-
-      // Check if return already in progress
-      if (order.returnRequestedAt) {
-        throw new HttpException(400, "Return request already exists for this order");
-      }
-
-      const updatedOrder = await this.orderRepository.update({
-        id: requestData.orderId,
-        status: OrderStatus.RETURN_IN_PROGRESS,
-        returnRequestedAt: new Date(),
-        notes: requestData.reason ? `${order.notes || ''}\nReturn reason: ${requestData.reason}`.trim() : order.notes,
-      } as any);
-
-      return await this.getOrderById(updatedOrder.id!);
-    } catch (error: any) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(500, error.message);
-    }
-  }
-
   public async requestCancellation(requestData: IRequestCancellation): Promise<IOrder> {
     try {
       const order = await this.orderRepository.findById(requestData.orderId);
@@ -523,46 +482,6 @@ export class OrderService implements IOrderService {
         cancellationRequestedAt: new Date(),
         notes: requestData.reason ? `${order.notes || ''}\nCancellation reason: ${requestData.reason}`.trim() : order.notes,
       } as any);
-
-      return await this.getOrderById(updatedOrder.id!);
-    } catch (error: any) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(500, error.message);
-    }
-  }
-
-  public async reviewReturn(reviewData: IReviewReturn): Promise<IOrder> {
-    try {
-      const order = await this.orderRepository.findById(reviewData.orderId);
-      if (!order) {
-        throw new HttpException(404, "Order not found");
-      }
-
-      if (!order.returnRequestedAt || order.status !== OrderStatus.RETURN_IN_PROGRESS) {
-        throw new HttpException(400, "No pending return request found for this order");
-      }
-
-      const updateData: any = {
-        id: reviewData.orderId,
-        returnReviewedBy: reviewData.reviewedBy,
-        returnReviewedAt: new Date(),
-        returnRejectionReason: reviewData.rejectionReason || null,
-      };
-
-      // Update order status based on review
-      if (reviewData.status === OrderStatus.RETURNED) {
-        updateData.status = OrderStatus.RETURNED;
-      } else if (reviewData.status === OrderStatus.REFUND_PENDING) {
-        updateData.status = OrderStatus.REFUND_PENDING;
-      } else {
-        // Rejected - revert to delivered
-        updateData.status = OrderStatus.DELIVERED;
-        updateData.returnRejectionReason = reviewData.rejectionReason || null;
-      }
-
-      const updatedOrder = await this.orderRepository.update(updateData);
 
       return await this.getOrderById(updatedOrder.id!);
     } catch (error: any) {
@@ -728,98 +647,6 @@ export class OrderService implements IOrderService {
         totalOrders,
         totalAmount,
       };
-    } catch (error: any) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(500, error.message);
-    }
-  }
-
-  public async requestItemReturn(requestData: IRequestItemReturn): Promise<IOrderItem> {
-    try {
-      // Verify order exists and belongs to user
-      const order = await this.orderRepository.findById(requestData.orderId);
-      if (!order) {
-        throw new HttpException(404, "Order not found");
-      }
-
-      // Only delivered orders can have items returned
-      if (order.status !== "delivered") {
-        throw new HttpException(400, "Only delivered orders can have items returned");
-      }
-
-      // Get the order item
-      const orderItem = await this.orderRepository.findOrderItemById(requestData.orderItemId);
-      if (!orderItem) {
-        throw new HttpException(404, "Order item not found");
-      }
-
-      // Verify the item belongs to the order
-      if (orderItem.orderId !== requestData.orderId) {
-        throw new HttpException(400, "Order item does not belong to this order");
-      }
-
-      // Check if return already requested
-      if (orderItem.status === OrderItemStatus.RETURN_REQUESTED || orderItem.returnRequestedAt) {
-        throw new HttpException(400, "Return request already exists for this item");
-      }
-
-      // Validate return quantity
-      if (requestData.returnQuantity <= 0 || requestData.returnQuantity > orderItem.quantity) {
-        throw new HttpException(400, `Return quantity must be between 1 and ${orderItem.quantity}`);
-      }
-
-      // Update order item with return request
-      const updatedItem = await this.orderRepository.updateOrderItem(requestData.orderItemId, {
-        status: OrderItemStatus.RETURN_REQUESTED,
-        returnRequestedAt: new Date(),
-        returnQuantity: requestData.returnQuantity,
-        returnReason: requestData.reason || null,
-      } as any);
-
-      return updatedItem;
-    } catch (error: any) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(500, error.message);
-    }
-  }
-
-  public async reviewItemReturn(reviewData: IReviewItemReturn): Promise<IOrderItem> {
-    try {
-      // Verify order exists
-      const order = await this.orderRepository.findById(reviewData.orderId);
-      if (!order) {
-        throw new HttpException(404, "Order not found");
-      }
-
-      // Get the order item
-      const orderItem = await this.orderRepository.findOrderItemById(reviewData.orderItemId);
-      if (!orderItem) {
-        throw new HttpException(404, "Order item not found");
-      }
-
-      // Verify the item belongs to the order
-      if (orderItem.orderId !== reviewData.orderId) {
-        throw new HttpException(400, "Order item does not belong to this order");
-      }
-
-      if (orderItem.status !== OrderItemStatus.RETURN_REQUESTED || !orderItem.returnRequestedAt) {
-        throw new HttpException(400, "No pending return request found for this item");
-      }
-
-      // Update order item with review decision
-      const updatedItem = await this.orderRepository.updateOrderItem(reviewData.orderItemId, {
-        status: reviewData.status as OrderItemStatus,
-        returnReviewedBy: reviewData.reviewedBy,
-        returnReviewedAt: new Date(),
-        returnRejectionReason:
-          reviewData.status === OrderItemStatus.RETURN_REJECTED ? reviewData.rejectionReason : null,
-      } as any);
-
-      return updatedItem;
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;
@@ -1001,19 +828,8 @@ export class OrderService implements IOrderService {
         [OrderItemStatus.PICKED]: [OrderItemStatus.PACKED, OrderItemStatus.CANCELLED],
         [OrderItemStatus.PACKED]: [OrderItemStatus.SHIPPED, OrderItemStatus.CANCELLED],
         [OrderItemStatus.SHIPPED]: [OrderItemStatus.DELIVERED],
-        [OrderItemStatus.DELIVERED]: [
-          OrderItemStatus.RETURN_REQUESTED,
-          OrderItemStatus.RETURN_APPROVED,
-          OrderItemStatus.RETURN_REJECTED,
-        ],
+        [OrderItemStatus.DELIVERED]: [], // Delivered is final state (returns handled separately via Return model)
         [OrderItemStatus.CANCELLED]: [], // Cannot transition from cancelled
-        [OrderItemStatus.RETURN_REQUESTED]: [OrderItemStatus.RETURN_APPROVED, OrderItemStatus.RETURN_REJECTED],
-        [OrderItemStatus.RETURN_APPROVED]: [OrderItemStatus.RETURN_IN_TRANSIT],
-        [OrderItemStatus.RETURN_REJECTED]: [], // Cannot transition from rejected
-        [OrderItemStatus.RETURN_IN_TRANSIT]: [OrderItemStatus.RETURN_RECEIVED],
-        [OrderItemStatus.RETURN_RECEIVED]: [OrderItemStatus.REFUND_PENDING],
-        [OrderItemStatus.REFUND_PENDING]: [OrderItemStatus.REFUNDED],
-        [OrderItemStatus.REFUNDED]: [], // Final state
       };
 
       // Admin can bypass transition validation, but vendors must follow transitions

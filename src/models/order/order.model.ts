@@ -6,20 +6,19 @@ class Order extends Model {
   public orderNumber!: string;
   public status!: string;
   public totalAmount!: number;
-  public shippingAddress!: any; // JSON field
+  public shippingAddress!: any;
   public paymentMethod!: string;
   public paymentStatus!: string;
   public email!: string;
   public phone?: string;
   public notes?: string;
-  public returnRequestedAt?: Date | null;
-  public returnReviewedBy?: string | null;
-  public returnReviewedAt?: Date | null;
-  public returnRejectionReason?: string | null;
+
+  // Cancellation request fields (KEEP)
   public cancellationRequestedAt?: Date | null;
   public cancellationReviewedBy?: string | null;
   public cancellationReviewedAt?: Date | null;
   public cancellationRejectionReason?: string | null;
+
   public createdAt?: Date;
   public updatedAt?: Date;
 
@@ -34,18 +33,13 @@ class Order extends Model {
         userId: {
           type: DataTypes.UUID,
           allowNull: false,
-          references: {
-            model: "users",
-            key: "id",
-          },
+          references: { model: "users", key: "id" },
           onDelete: "CASCADE",
           onUpdate: "CASCADE",
         },
         orderNumber: {
           type: DataTypes.STRING(255),
           allowNull: false,
-          // Note: unique constraint removed to avoid MySQL 64-key limit
-          // Uniqueness is enforced at the application/service layer
         },
         status: {
           type: DataTypes.ENUM(
@@ -55,11 +49,7 @@ class Order extends Model {
             "ready_to_ship",
             "shipped",
             "delivered",
-            "cancelled",
-            "return_in_progress",
-            "returned",
-            "refund_pending",
-            "refunded"
+            "cancelled"
           ),
           allowNull: false,
           defaultValue: "pending",
@@ -93,30 +83,8 @@ class Order extends Model {
           type: DataTypes.TEXT,
           allowNull: true,
         },
-        // Return request fields
-        returnRequestedAt: {
-          type: DataTypes.DATE,
-          allowNull: true,
-        },
-        returnReviewedBy: {
-          type: DataTypes.UUID,
-          allowNull: true,
-          references: {
-            model: "users",
-            key: "id",
-          },
-          onDelete: "SET NULL",
-          onUpdate: "CASCADE",
-        },
-        returnReviewedAt: {
-          type: DataTypes.DATE,
-          allowNull: true,
-        },
-        returnRejectionReason: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-        },
-        // Cancellation request fields
+
+        // Cancellation request fields (KEEP)
         cancellationRequestedAt: {
           type: DataTypes.DATE,
           allowNull: true,
@@ -124,10 +92,7 @@ class Order extends Model {
         cancellationReviewedBy: {
           type: DataTypes.UUID,
           allowNull: true,
-          references: {
-            model: "users",
-            key: "id",
-          },
+          references: { model: "users", key: "id" },
           onDelete: "SET NULL",
           onUpdate: "CASCADE",
         },

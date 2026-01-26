@@ -26,7 +26,7 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
     try {
       const createdProductAttributeValues = await ProductAttributeValue.bulkCreate(
         productAttributeValuesData as any[],
-        { returning: true, raw: false }
+        { returning: true }
       );
 
       return createdProductAttributeValues.map((pav) => pav.get({ plain: true }));

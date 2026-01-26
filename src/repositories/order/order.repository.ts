@@ -142,12 +142,7 @@ export class OrderRepository implements IOrderRepository {
       if (updateData.notes !== undefined) updatePayload.notes = updateData.notes;
       if ((updateData as any).totalAmount !== undefined) updatePayload.totalAmount = (updateData as any).totalAmount;
       if ((updateData as any).orderNumber !== undefined) updatePayload.orderNumber = (updateData as any).orderNumber;
-      // Return request metadata fields (status is now in status field)
-      if ((updateData as any).returnRequestedAt !== undefined) updatePayload.returnRequestedAt = (updateData as any).returnRequestedAt;
-      if ((updateData as any).returnReviewedBy !== undefined) updatePayload.returnReviewedBy = (updateData as any).returnReviewedBy;
-      if ((updateData as any).returnReviewedAt !== undefined) updatePayload.returnReviewedAt = (updateData as any).returnReviewedAt;
-      if ((updateData as any).returnRejectionReason !== undefined) updatePayload.returnRejectionReason = (updateData as any).returnRejectionReason;
-      // Cancellation request metadata fields (status is now in status field)
+      // Cancellation request metadata fields
       if ((updateData as any).cancellationRequestedAt !== undefined) updatePayload.cancellationRequestedAt = (updateData as any).cancellationRequestedAt;
       if ((updateData as any).cancellationReviewedBy !== undefined) updatePayload.cancellationReviewedBy = (updateData as any).cancellationReviewedBy;
       if ((updateData as any).cancellationReviewedAt !== undefined) updatePayload.cancellationReviewedAt = (updateData as any).cancellationReviewedAt;
@@ -335,13 +330,6 @@ export class OrderRepository implements IOrderRepository {
       if (updateData.rejectionReason !== undefined) updatePayload.rejectionReason = updateData.rejectionReason;
       if (updateData.rejectedBy !== undefined) updatePayload.rejectedBy = updateData.rejectedBy;
       if (updateData.rejectedAt !== undefined) updatePayload.rejectedAt = updateData.rejectedAt;
-      // Return request fields
-      if (updateData.returnRequestedAt !== undefined) updatePayload.returnRequestedAt = updateData.returnRequestedAt;
-      if (updateData.returnQuantity !== undefined) updatePayload.returnQuantity = updateData.returnQuantity;
-      if (updateData.returnReason !== undefined) updatePayload.returnReason = updateData.returnReason;
-      if (updateData.returnReviewedBy !== undefined) updatePayload.returnReviewedBy = updateData.returnReviewedBy;
-      if (updateData.returnReviewedAt !== undefined) updatePayload.returnReviewedAt = updateData.returnReviewedAt;
-      if (updateData.returnRejectionReason !== undefined) updatePayload.returnRejectionReason = updateData.returnRejectionReason;
 
       await orderItem.update(updatePayload);
 

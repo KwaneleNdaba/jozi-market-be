@@ -16,6 +16,8 @@ import Cart from "@/models/cart/cart.model";
 import CartItem from "@/models/cart-item/cartItem.model";
 import Order from "@/models/order/order.model";
 import OrderItem from "@/models/order-item/orderItem.model";
+import Return from "@/models/return/return.model";
+import ReturnItem from "@/models/return-item/returnItem.model";
 
 export function setupAssociations() {
   // User - RefreshToken
@@ -376,20 +378,6 @@ export function setupAssociations() {
     onUpdate: "CASCADE",
   });
 
-  // Order - User (return reviewer) relationship
-  Order.belongsTo(User, {
-    foreignKey: "returnReviewedBy",
-    as: "returnReviewer",
-    onDelete: "SET NULL",
-    onUpdate: "CASCADE",
-  });
-  User.hasMany(Order, {
-    foreignKey: "returnReviewedBy",
-    as: "returnReviewedOrders",
-    onDelete: "SET NULL",
-    onUpdate: "CASCADE",
-  });
-
   // Order - User (cancellation reviewer) relationship
   Order.belongsTo(User, {
     foreignKey: "cancellationReviewedBy",
@@ -404,16 +392,86 @@ export function setupAssociations() {
     onUpdate: "CASCADE",
   });
 
-  // OrderItem - User (return reviewer) relationship
-  OrderItem.belongsTo(User, {
-    foreignKey: "returnReviewedBy",
-    as: "returnReviewer",
+  // Return - Order relationship
+  Return.belongsTo(Order, {
+    foreignKey: "orderId",
+    as: "order",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Order.hasMany(Return, {
+    foreignKey: "orderId",
+    as: "returns",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Return - User (customer) relationship
+  Return.belongsTo(User, {
+    foreignKey: "userId",
+    as: "user",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(Return, {
+    foreignKey: "userId",
+    as: "returns",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Return - User (reviewer) relationship
+  Return.belongsTo(User, {
+    foreignKey: "reviewedBy",
+    as: "reviewer",
     onDelete: "SET NULL",
     onUpdate: "CASCADE",
   });
-  User.hasMany(OrderItem, {
-    foreignKey: "returnReviewedBy",
-    as: "itemReturnReviewedOrders",
+  User.hasMany(Return, {
+    foreignKey: "reviewedBy",
+    as: "reviewedReturns",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+
+  // Return - ReturnItem relationship
+  ReturnItem.belongsTo(Return, {
+    foreignKey: "returnId",
+    as: "return",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Return.hasMany(ReturnItem, {
+    foreignKey: "returnId",
+    as: "items",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // ReturnItem - OrderItem relationship
+  ReturnItem.belongsTo(OrderItem, {
+    foreignKey: "orderItemId",
+    as: "orderItem",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  OrderItem.hasMany(ReturnItem, {
+    foreignKey: "orderItemId",
+    as: "returnItems",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // ReturnItem - User (reviewer) relationship
+  ReturnItem.belongsTo(User, {
+    foreignKey: "reviewedBy",
+    as: "reviewer",
+    onDelete: "SET NULL",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(ReturnItem, {
+    foreignKey: "reviewedBy",
+    as: "reviewedReturnItems",
     onDelete: "SET NULL",
     onUpdate: "CASCADE",
   });

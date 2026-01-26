@@ -14,6 +14,7 @@ import { UserSubscriptionRoute } from "./routes/user-subscription/userSubscripti
 import { SubscriptionTransactionRoute } from "./routes/subscription-transaction/subscriptionTransaction.route";
 import { CartRoute } from "./routes/cart/cart.route";
 import { OrderRoute } from "./routes/order/order.route";
+import { ReturnRoute } from "./routes/return/return.route";
 import { PayFastRoute } from "./routes/payfast/payfast.route";
 import { ValidateEnv } from "./utils/validateEnv";
 
@@ -35,6 +36,7 @@ const app = new App([
   new SubscriptionTransactionRoute(),
   new CartRoute(),
   new OrderRoute(),
+  new ReturnRoute(),
   new PayFastRoute(),
 ]);
 

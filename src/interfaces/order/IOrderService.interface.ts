@@ -1,5 +1,5 @@
 import { Token } from "typedi";
-import type { IOrder, ICreateOrder, IUpdateOrder, IRequestReturn, IRequestCancellation, IReviewReturn, IReviewCancellation, IVendorOrdersResponse, IRequestItemReturn, IReviewItemReturn, IOrderItem, IOrderItemsGroupedResponse, OrderItemStatus } from "@/types/order.types";
+import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IReviewCancellation, IVendorOrdersResponse, IOrderItem, IOrderItemsGroupedResponse, OrderItemStatus } from "@/types/order.types";
 
 export interface IOrderService {
   createOrder(userId: string, orderData: ICreateOrder): Promise<IOrder>;
@@ -8,13 +8,9 @@ export interface IOrderService {
   getOrdersByUserId(userId: string): Promise<IOrder[]>;
   getAllOrders(status?: string): Promise<IOrder[]>;
   updateOrder(updateData: IUpdateOrder): Promise<IOrder>;
-  requestReturn(requestData: IRequestReturn): Promise<IOrder>;
   requestCancellation(requestData: IRequestCancellation): Promise<IOrder>;
-  reviewReturn(reviewData: IReviewReturn): Promise<IOrder>;
   reviewCancellation(reviewData: IReviewCancellation): Promise<IOrder>;
   getOrdersByVendorId(vendorId: string): Promise<IVendorOrdersResponse>;
-  requestItemReturn(requestData: IRequestItemReturn): Promise<IOrderItem>;
-  reviewItemReturn(reviewData: IReviewItemReturn): Promise<IOrderItem>;
   getOrderItemsGroupedByDateAndVendor(): Promise<IOrderItemsGroupedResponse>;
   updateOrderItemStatus(orderItemId: string, status: OrderItemStatus | string, userId: string, userRole: string, rejectionReason?: string): Promise<IOrderItem>;
 }

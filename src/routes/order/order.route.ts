@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { CreateOrderDto, UpdateOrderDto, RequestReturnDto, RequestCancellationDto, ReviewReturnDto, ReviewCancellationDto, RequestItemReturnDto, ReviewItemReturnDto, UpdateOrderItemStatusDto } from "@/dots/order/order.dot";
+import { CreateOrderDto, UpdateOrderDto, RequestCancellationDto, ReviewCancellationDto, UpdateOrderItemStatusDto } from "@/dots/order/order.dot";
 import { authorizationMiddleware, adminAuthorizationMiddleware, adminOrVendorAuthorizationMiddleware } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
 import type { Routes } from "@/types/routes.interface";
@@ -51,14 +51,6 @@ export class OrderRoute implements Routes {
       this.order.getOrderByOrderNumber
     );
 
-    // Request return (authenticated users only) - MUST come before /:id route
-    this.router.post(
-      `${this.path}/return`,
-      authorizationMiddleware,
-      ValidationMiddleware(RequestReturnDto),
-      this.order.requestReturn
-    );
-
     // Request cancellation (authenticated users only) - MUST come before /:id route
     this.router.post(
       `${this.path}/cancellation`,
@@ -67,36 +59,12 @@ export class OrderRoute implements Routes {
       this.order.requestCancellation
     );
 
-    // Review return request (admin only) - MUST come before /:id route
-    this.router.put(
-      `${this.path}/return/review`,
-      adminAuthorizationMiddleware,
-      ValidationMiddleware(ReviewReturnDto),
-      this.order.reviewReturn
-    );
-
     // Review cancellation request (admin only) - MUST come before /:id route
     this.router.put(
       `${this.path}/cancellation/review`,
       adminAuthorizationMiddleware,
       ValidationMiddleware(ReviewCancellationDto),
       this.order.reviewCancellation
-    );
-
-    // Request item return (authenticated users only) - MUST come before /:id route
-    this.router.post(
-      `${this.path}/item/return`,
-      authorizationMiddleware,
-      ValidationMiddleware(RequestItemReturnDto),
-      this.order.requestItemReturn
-    );
-
-    // Review item return request (admin only) - MUST come before /:id route
-    this.router.put(
-      `${this.path}/item/return/review`,
-      adminAuthorizationMiddleware,
-      ValidationMiddleware(ReviewItemReturnDto),
-      this.order.reviewItemReturn
     );
 
     // Update order item status (vendor for their products, admin for any) - MUST come before /:id route

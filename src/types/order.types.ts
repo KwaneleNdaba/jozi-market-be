@@ -6,10 +6,6 @@ export enum OrderStatus {
   SHIPPED = "shipped",
   DELIVERED = "delivered",
   CANCELLED = "cancelled",
-  RETURN_IN_PROGRESS = "return_in_progress",
-  RETURNED = "returned",
-  REFUND_PENDING = "refund_pending",
-  REFUNDED = "refunded",
 }
 
 export enum OrderItemStatus {
@@ -22,13 +18,6 @@ export enum OrderItemStatus {
   SHIPPED = "shipped",
   DELIVERED = "delivered",
   CANCELLED = "cancelled",
-  RETURN_REQUESTED = "return_requested",
-  RETURN_APPROVED = "return_approved",
-  RETURN_REJECTED = "return_rejected",
-  RETURN_IN_TRANSIT = "return_in_transit",
-  RETURN_RECEIVED = "return_received",
-  REFUND_PENDING = "refund_pending",
-  REFUNDED = "refunded",
 }
 
 export enum PaymentStatus {
@@ -69,13 +58,6 @@ export interface IOrderItem {
   rejectionReason?: string | null;
   rejectedBy?: string | null;
   rejectedAt?: Date | null;
-  // Return request metadata fields (status is now in status field)
-  returnRequestedAt?: Date | null;
-  returnQuantity?: number | null;
-  returnReason?: string | null;
-  returnReviewedBy?: string | null;
-  returnReviewedAt?: Date | null;
-  returnRejectionReason?: string | null;
   product?: any; // Product details (enriched)
   createdAt?: Date;
   updatedAt?: Date;
@@ -95,11 +77,7 @@ export interface IOrder {
   notes?: string;
   items?: IOrderItem[];
   user?: IOrderUser;
-  // Return/cancellation metadata fields (status is now in status field)
-  returnRequestedAt?: Date | null;
-  returnReviewedBy?: string | null;
-  returnReviewedAt?: Date | null;
-  returnRejectionReason?: string | null;
+  // Cancellation metadata fields
   cancellationRequestedAt?: Date | null;
   cancellationReviewedBy?: string | null;
   cancellationReviewedAt?: Date | null;
@@ -125,21 +103,9 @@ export interface IUpdateOrder {
   totalAmount?: number;
 }
 
-export interface IRequestReturn {
-  orderId: string;
-  reason?: string;
-}
-
 export interface IRequestCancellation {
   orderId: string;
   reason?: string;
-}
-
-export interface IReviewReturn {
-  orderId: string;
-  status: OrderStatus | string; // Uses OrderStatus enum (return_in_progress, returned, etc.)
-  reviewedBy: string;
-  rejectionReason?: string;
 }
 
 export interface IReviewCancellation {
@@ -161,21 +127,6 @@ export interface IVendorOrdersResponse {
   groupedOrders: IOrdersGroupedByDate[];
   totalOrders: number;
   totalAmount: number;
-}
-
-export interface IRequestItemReturn {
-  orderId: string;
-  orderItemId: string;
-  returnQuantity: number;
-  reason?: string;
-}
-
-export interface IReviewItemReturn {
-  orderId: string;
-  orderItemId: string;
-  status: OrderItemStatus | string; // Uses OrderItemStatus enum (return_approved, return_rejected, etc.)
-  reviewedBy: string;
-  rejectionReason?: string;
 }
 
 export interface IVendorDetails {

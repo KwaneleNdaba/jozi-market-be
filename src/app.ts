@@ -43,6 +43,8 @@ import { CART_REPOSITORY_TOKEN } from "./interfaces/cart/ICartRepository.interfa
 import { CART_SERVICE_TOKEN } from "./interfaces/cart/ICartService.interface";
 import { ORDER_REPOSITORY_TOKEN } from "./interfaces/order/IOrderRepository.interface";
 import { ORDER_SERVICE_TOKEN } from "./interfaces/order/IOrderService.interface";
+import { RETURN_REPOSITORY_TOKEN } from "./interfaces/return/IReturnRepository.interface";
+import { RETURN_SERVICE_TOKEN } from "./interfaces/return/IReturnService.interface";
 import { PAYFAST_SERVICE_TOKEN } from "./interfaces/payfast/IPayfastService.interface";
 import { apiGatewayMultipartMiddleware } from "./middlewares/apiGatewayMultipart";
 import { ErrorMiddleware } from "./middlewares/ErrorMiddleware";
@@ -60,6 +62,7 @@ import { UserSubscriptionRepository } from "./repositories/user-subscription/use
 import { SubscriptionTransactionRepository } from "./repositories/subscription-transaction/subscriptionTransaction.repository";
 import { CartRepository } from "./repositories/cart/cart.repository";
 import { OrderRepository } from "./repositories/order/order.repository";
+import { ReturnRepository } from "./repositories/return/return.repository";
 import { AuthService } from "./services/auth/auth.service";
 import { FileUploadService } from "./services/file-upload/file-upload.service";
 import { VendorService } from "./services/vendor-application/vendor.service";
@@ -75,6 +78,7 @@ import { UserSubscriptionService } from "./services/user-subscription/userSubscr
 import { SubscriptionTransactionService } from "./services/subscription-transaction/subscriptionTransaction.service";
 import { CartService } from "./services/cart/cart.service";
 import { OrderService } from "./services/order/order.service";
+import { ReturnService } from "./services/return/return.service";
 import { PayFastService } from "./services/payfast/payfast.service";
 import type { Routes } from "./types/routes.interface";
 import { logger, stream } from "./utils/logger";
@@ -105,7 +109,7 @@ export class App {
     this.app.listen(this.port, () => {
       logger.info(`=================================`);
       logger.info(`======= ENV: ${this.env} =======`);
-      logger.info(`🚀 WATER-HUB listening on port ${this.port}`);
+      logger.info(`🚀 JOZI-MARKET listening on port ${this.port}`);
       logger.info(`==================================`);
     });
   }
@@ -160,6 +164,7 @@ export class App {
     Container.set(SUBSCRIPTION_TRANSACTION_REPOSITORY_TOKEN, new SubscriptionTransactionRepository());
     Container.set(CART_REPOSITORY_TOKEN, new CartRepository());
     Container.set(ORDER_REPOSITORY_TOKEN, new OrderRepository());
+    Container.set(RETURN_REPOSITORY_TOKEN, new ReturnRepository());
 
     // Register Services (depend on repositories via tokens)
     Container.set(AUTH_SERVICE_TOKEN, new AuthService(Container.get(AUTH_REPOSITORY_TOKEN)));
@@ -179,6 +184,10 @@ export class App {
       Container.get(SUBSCRIPTION_PLAN_REPOSITORY_TOKEN),
       Container.get(USER_SUBSCRIPTION_REPOSITORY_TOKEN)
     ));
+    Container.set(RETURN_SERVICE_TOKEN, new ReturnService(
+      Container.get(RETURN_REPOSITORY_TOKEN),
+      Container.get(ORDER_REPOSITORY_TOKEN)
+    ));
     Container.set(CART_SERVICE_TOKEN, new CartService(
       Container.get(CART_REPOSITORY_TOKEN),
       Container.get(PRODUCT_REPOSITORY_TOKEN),
@@ -186,6 +195,7 @@ export class App {
     ));
     Container.set(ORDER_SERVICE_TOKEN, new OrderService(
       Container.get(ORDER_REPOSITORY_TOKEN),
+      Container.get(RETURN_REPOSITORY_TOKEN),
       Container.get(CART_REPOSITORY_TOKEN),
       Container.get(PRODUCT_REPOSITORY_TOKEN),
       Container.get(PRODUCT_SERVICE_TOKEN)
