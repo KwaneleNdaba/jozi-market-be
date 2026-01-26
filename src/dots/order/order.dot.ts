@@ -8,7 +8,7 @@ import {
   IsUUID,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { OrderStatus, PaymentStatus, ReturnRequestStatus, CancellationRequestStatus } from "@/types/order.types";
+import { OrderStatus, PaymentStatus, OrderItemStatus } from "@/types/order.types";
 
 class ShippingAddressDto {
   @IsString()
@@ -98,9 +98,9 @@ export class ReviewReturnDto {
   @IsNotEmpty()
   public orderId: string;
 
-  @IsEnum(ReturnRequestStatus)
+  @IsEnum(OrderStatus)
   @IsNotEmpty()
-  public status: ReturnRequestStatus | string;
+  public status: OrderStatus | string;
 
   @IsUUID()
   @IsNotEmpty()
@@ -116,9 +116,9 @@ export class ReviewCancellationDto {
   @IsNotEmpty()
   public orderId: string;
 
-  @IsEnum(CancellationRequestStatus)
+  @IsEnum(OrderStatus)
   @IsNotEmpty()
-  public status: CancellationRequestStatus | string;
+  public status: OrderStatus | string;
 
   @IsUUID()
   @IsNotEmpty()
@@ -155,9 +155,9 @@ export class ReviewItemReturnDto {
   @IsNotEmpty()
   public orderItemId: string;
 
-  @IsEnum(ReturnRequestStatus)
+  @IsEnum(OrderItemStatus)
   @IsNotEmpty()
-  public status: ReturnRequestStatus | string;
+  public status: OrderItemStatus | string;
 
   @IsUUID()
   @IsNotEmpty()
@@ -166,4 +166,10 @@ export class ReviewItemReturnDto {
   @IsOptional()
   @IsString()
   public rejectionReason?: string;
+}
+
+export class UpdateOrderItemStatusDto {
+  @IsEnum(OrderItemStatus)
+  @IsNotEmpty()
+  public status: OrderItemStatus | string;
 }

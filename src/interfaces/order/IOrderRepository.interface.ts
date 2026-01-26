@@ -1,5 +1,5 @@
 import { Token } from "typedi";
-import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder } from "@/types/order.types";
+import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder, IOrderItemWithDetails } from "@/types/order.types";
 
 export interface IOrderRepository {
   create(orderData: ICreateOrder, orderNumber?: string): Promise<IOrder>;
@@ -13,6 +13,7 @@ export interface IOrderRepository {
   findByVendorId(vendorId: string): Promise<IOrder[]>;
   findOrderItemById(orderItemId: string): Promise<IOrderItem | null>;
   updateOrderItem(orderItemId: string, updateData: Partial<IOrderItem>): Promise<IOrderItem>;
+  findOrderItemsLast30Days(): Promise<IOrderItemWithDetails[]>;
 }
 
 export const ORDER_REPOSITORY_TOKEN = new Token<IOrderRepository>("IOrderRepository");

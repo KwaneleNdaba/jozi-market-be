@@ -12,14 +12,10 @@ class Order extends Model {
   public email!: string;
   public phone?: string;
   public notes?: string;
-  // Return request fields
-  public returnRequestStatus?: string | null;
   public returnRequestedAt?: Date | null;
   public returnReviewedBy?: string | null;
   public returnReviewedAt?: Date | null;
   public returnRejectionReason?: string | null;
-  // Cancellation request fields
-  public cancellationRequestStatus?: string | null;
   public cancellationRequestedAt?: Date | null;
   public cancellationReviewedBy?: string | null;
   public cancellationReviewedAt?: Date | null;
@@ -52,7 +48,19 @@ class Order extends Model {
           // Uniqueness is enforced at the application/service layer
         },
         status: {
-          type: DataTypes.ENUM("pending", "processing", "shipped", "delivered", "cancelled", "returned"),
+          type: DataTypes.ENUM(
+            "pending",
+            "confirmed",
+            "processing",
+            "ready_to_ship",
+            "shipped",
+            "delivered",
+            "cancelled",
+            "return_in_progress",
+            "returned",
+            "refund_pending",
+            "refunded"
+          ),
           allowNull: false,
           defaultValue: "pending",
         },
@@ -86,11 +94,6 @@ class Order extends Model {
           allowNull: true,
         },
         // Return request fields
-        returnRequestStatus: {
-          type: DataTypes.ENUM("pending", "approved", "rejected"),
-          allowNull: true,
-          defaultValue: null,
-        },
         returnRequestedAt: {
           type: DataTypes.DATE,
           allowNull: true,
@@ -114,11 +117,6 @@ class Order extends Model {
           allowNull: true,
         },
         // Cancellation request fields
-        cancellationRequestStatus: {
-          type: DataTypes.ENUM("pending", "approved", "rejected"),
-          allowNull: true,
-          defaultValue: null,
-        },
         cancellationRequestedAt: {
           type: DataTypes.DATE,
           allowNull: true,

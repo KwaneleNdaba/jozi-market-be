@@ -10,7 +10,8 @@ import OrderItem from "@/models/order-item/orderItem.model";
 import Product from "@/models/product/product.model";
 import ProductVariant from "@/models/product-variant/productVariant.model";
 import User from "@/models/user/user.model";
-import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder } from "@/types/order.types";
+import VendorApplication from "@/models/vendor-application/vendorApplication.model";
+import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder, IOrderItemWithDetails } from "@/types/order.types";
 
 @Service({ id: ORDER_REPOSITORY_TOKEN })
 export class OrderRepository implements IOrderRepository {
@@ -141,14 +142,12 @@ export class OrderRepository implements IOrderRepository {
       if (updateData.notes !== undefined) updatePayload.notes = updateData.notes;
       if ((updateData as any).totalAmount !== undefined) updatePayload.totalAmount = (updateData as any).totalAmount;
       if ((updateData as any).orderNumber !== undefined) updatePayload.orderNumber = (updateData as any).orderNumber;
-      // Return request fields
-      if ((updateData as any).returnRequestStatus !== undefined) updatePayload.returnRequestStatus = (updateData as any).returnRequestStatus;
+      // Return request metadata fields (status is now in status field)
       if ((updateData as any).returnRequestedAt !== undefined) updatePayload.returnRequestedAt = (updateData as any).returnRequestedAt;
       if ((updateData as any).returnReviewedBy !== undefined) updatePayload.returnReviewedBy = (updateData as any).returnReviewedBy;
       if ((updateData as any).returnReviewedAt !== undefined) updatePayload.returnReviewedAt = (updateData as any).returnReviewedAt;
       if ((updateData as any).returnRejectionReason !== undefined) updatePayload.returnRejectionReason = (updateData as any).returnRejectionReason;
-      // Cancellation request fields
-      if ((updateData as any).cancellationRequestStatus !== undefined) updatePayload.cancellationRequestStatus = (updateData as any).cancellationRequestStatus;
+      // Cancellation request metadata fields (status is now in status field)
       if ((updateData as any).cancellationRequestedAt !== undefined) updatePayload.cancellationRequestedAt = (updateData as any).cancellationRequestedAt;
       if ((updateData as any).cancellationReviewedBy !== undefined) updatePayload.cancellationReviewedBy = (updateData as any).cancellationReviewedBy;
       if ((updateData as any).cancellationReviewedAt !== undefined) updatePayload.cancellationReviewedAt = (updateData as any).cancellationReviewedAt;
@@ -176,6 +175,7 @@ export class OrderRepository implements IOrderRepository {
         quantity: itemData.quantity,
         unitPrice: itemData.unitPrice,
         totalPrice: itemData.totalPrice,
+        status: (itemData as any).status || "pending",
       } as any);
       return orderItem.get({ plain: true });
     } catch (error: any) {
@@ -328,7 +328,12 @@ export class OrderRepository implements IOrderRepository {
       }
 
       const updatePayload: any = {};
-      if (updateData.returnRequestStatus !== undefined) updatePayload.returnRequestStatus = updateData.returnRequestStatus;
+      if ((updateData as any).status !== undefined) updatePayload.status = (updateData as any).status;
+      // Rejection fields
+      if (updateData.rejectionReason !== undefined) updatePayload.rejectionReason = updateData.rejectionReason;
+      if (updateData.rejectedBy !== undefined) updatePayload.rejectedBy = updateData.rejectedBy;
+      if (updateData.rejectedAt !== undefined) updatePayload.rejectedAt = updateData.rejectedAt;
+      // Return request fields
       if (updateData.returnRequestedAt !== undefined) updatePayload.returnRequestedAt = updateData.returnRequestedAt;
       if (updateData.returnQuantity !== undefined) updatePayload.returnQuantity = updateData.returnQuantity;
       if (updateData.returnReason !== undefined) updatePayload.returnReason = updateData.returnReason;
@@ -361,6 +366,109 @@ export class OrderRepository implements IOrderRepository {
         throw error;
       }
       throw new HttpException(409, error.message);
+    }
+  }
+
+  public async findOrderItemsLast30Days(): Promise<IOrderItemWithDetails[]> {
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const orderItems = await OrderItem.findAll({
+        where: {
+          createdAt: {
+            [Op.gte]: thirtyDaysAgo,
+          },
+        },
+        include: [
+          {
+            model: Order,
+            as: "order",
+            required: true,
+            include: [
+              {
+                model: User,
+                as: "user",
+                required: false,
+                attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+              },
+            ],
+            attributes: ["id", "orderNumber", "createdAt"],
+          },
+          {
+            model: Product,
+            as: "product",
+            required: true,
+            include: [
+              {
+                model: User,
+                as: "vendor",
+                required: true,
+                attributes: ["id"],
+                include: [
+                  {
+                    model: VendorApplication,
+                    as: "applicant",
+                    required: false,
+                    where: {
+                      status: "approved",
+                    },
+                    order: [["submittedAt", "DESC"]],
+                    limit: 1,
+                    attributes: ["shopName", "contactPerson", "address"],
+                  },
+                ],
+              },
+            ],
+            attributes: ["id", "title", "sku", "userId", "images"],
+          },
+        ],
+        order: [["createdAt", "DESC"]],
+        raw: false,
+      });
+
+      return orderItems.map((item) => {
+        const itemData = item.get({ plain: true }) as any;
+        
+        // Extract vendor details from product's vendor application
+        let vendorDetails = null;
+        if (itemData.product?.vendor?.applicant) {
+          const application = Array.isArray(itemData.product.vendor.applicant) 
+            ? itemData.product.vendor.applicant[0] 
+            : itemData.product.vendor.applicant;
+          
+          if (application) {
+            vendorDetails = {
+              vendorId: itemData.product.userId,
+              vendorName: application.shopName,
+              contactPerson: application.contactPerson,
+              address: application.address,
+            };
+          }
+        }
+
+        // Extract customer details from order
+        const customerDetails = itemData.order?.user || null;
+
+        return {
+          ...itemData,
+          order: itemData.order ? {
+            id: itemData.order.id,
+            orderNumber: itemData.order.orderNumber,
+            createdAt: itemData.order.createdAt,
+            customer: customerDetails,
+          } : undefined,
+          product: itemData.product ? {
+            id: itemData.product.id,
+            title: itemData.product.title,
+            sku: itemData.product.sku,
+            images: itemData.product.images || [],
+          } : undefined,
+          vendor: vendorDetails,
+        } as IOrderItemWithDetails;
+      });
+    } catch (error: any) {
+      throw new HttpException(500, error.message);
     }
   }
 }

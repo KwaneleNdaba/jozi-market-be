@@ -8,8 +8,12 @@ class OrderItem extends Model {
   public quantity!: number;
   public unitPrice!: number;
   public totalPrice!: number;
+  public status!: string;
+  // Rejection fields (for vendor rejection)
+  public rejectionReason?: string | null;
+  public rejectedBy?: string | null;
+  public rejectedAt?: Date | null;
   // Return request fields
-  public returnRequestStatus?: string | null;
   public returnRequestedAt?: Date | null;
   public returnQuantity?: number | null; // Quantity to return (can be less than total)
   public returnReason?: string | null;
@@ -72,12 +76,48 @@ class OrderItem extends Model {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: false,
         },
-        // Return request fields
-        returnRequestStatus: {
-          type: DataTypes.ENUM("pending", "approved", "rejected"),
-          allowNull: true,
-          defaultValue: null,
+        status: {
+          type: DataTypes.ENUM(
+            "pending",
+            "accepted",
+            "rejected",
+            "processing",
+            "picked",
+            "packed",
+            "shipped",
+            "delivered",
+            "cancelled",
+            "return_requested",
+            "return_approved",
+            "return_rejected",
+            "return_in_transit",
+            "return_received",
+            "refund_pending",
+            "refunded"
+          ),
+          allowNull: false,
+          defaultValue: "pending",
         },
+        // Rejection fields (for vendor rejection)
+        rejectionReason: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
+        rejectedBy: {
+          type: DataTypes.UUID,
+          allowNull: true,
+          references: {
+            model: "users",
+            key: "id",
+          },
+          onDelete: "SET NULL",
+          onUpdate: "CASCADE",
+        },
+        rejectedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        // Return request fields
         returnRequestedAt: {
           type: DataTypes.DATE,
           allowNull: true,

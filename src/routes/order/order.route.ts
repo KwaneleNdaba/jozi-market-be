@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { CreateOrderDto, UpdateOrderDto, RequestReturnDto, RequestCancellationDto, ReviewReturnDto, ReviewCancellationDto, RequestItemReturnDto, ReviewItemReturnDto } from "@/dots/order/order.dot";
+import { CreateOrderDto, UpdateOrderDto, RequestReturnDto, RequestCancellationDto, ReviewReturnDto, ReviewCancellationDto, RequestItemReturnDto, ReviewItemReturnDto, UpdateOrderItemStatusDto } from "@/dots/order/order.dot";
 import { authorizationMiddleware, adminAuthorizationMiddleware } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
 import type { Routes } from "@/types/routes.interface";
@@ -35,6 +35,13 @@ export class OrderRoute implements Routes {
       `${this.path}/vendor/:vendorId`,
       authorizationMiddleware,
       this.order.getOrdersByVendorId
+    );
+
+    // Get order items grouped by date and vendor (last 30 days) - MUST come before /:id route
+    this.router.get(
+      `${this.path}/items/grouped`,
+      adminAuthorizationMiddleware,
+      this.order.getOrderItemsGroupedByDateAndVendor
     );
 
     // Get order by order number (authenticated users only) - MUST come before /:id route
@@ -90,6 +97,14 @@ export class OrderRoute implements Routes {
       adminAuthorizationMiddleware,
       ValidationMiddleware(ReviewItemReturnDto),
       this.order.reviewItemReturn
+    );
+
+    // Update order item status (vendor for their products, admin for any) - MUST come before /:id route
+    this.router.put(
+      `${this.path}/item/:orderItemId/status`,
+      authorizationMiddleware,
+      ValidationMiddleware(UpdateOrderItemStatusDto),
+      this.order.updateOrderItemStatus
     );
 
     // Get order by ID (authenticated users only - can access own orders)

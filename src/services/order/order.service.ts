@@ -8,8 +8,8 @@ import { PRODUCT_REPOSITORY_TOKEN } from "@/interfaces/product/IProductRepositor
 import type { IProductRepository } from "@/interfaces/product/IProductRepository.interface";
 import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import type { IProductService } from "@/interfaces/product/IProductService.interface";
-import type { IOrder, ICreateOrder, IUpdateOrder, IRequestReturn, IRequestCancellation, IReviewReturn, IReviewCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IRequestItemReturn, IReviewItemReturn, IOrderItem } from "@/types/order.types";
-import { ReturnRequestStatus, CancellationRequestStatus } from "@/types/order.types";
+import type { IOrder, ICreateOrder, IUpdateOrder, IRequestReturn, IRequestCancellation, IReviewReturn, IReviewCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IRequestItemReturn, IReviewItemReturn, IOrderItem, IOrderItemsGroupedResponse, IOrderItemsByVendorAndDate, IOrderItemWithDetails } from "@/types/order.types";
+import { OrderStatus, OrderItemStatus, PaymentStatus } from "@/types/order.types";
 import Order from "@/models/order/order.model";
 import dbConnection from "@/database";
 
@@ -21,6 +21,72 @@ export class OrderService implements IOrderService {
     @Inject(PRODUCT_REPOSITORY_TOKEN) private readonly productRepository: IProductRepository,
     @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService
   ) {}
+
+  /**
+   * Calculate order status based on order items statuses
+   * Rules:
+   * - order.status = delivered when ALL active items are delivered
+   * - order.status = shipped when order is shipped (consolidated shipment)
+   * - order.status = ready_to_ship when every item is packed/shipped OR cancelled/rejected
+   * - order.status = cancelled when all items are cancelled/rejected
+   */
+  private async calculateOrderStatus(orderId: string): Promise<OrderStatus> {
+    const order = await this.orderRepository.getOrderWithItems(orderId);
+    if (!order || !order.items || order.items.length === 0) {
+      return OrderStatus.PENDING;
+    }
+
+    const items = order.items;
+    const activeItems = items.filter(
+      (item) => item.status !== OrderItemStatus.CANCELLED && item.status !== OrderItemStatus.REJECTED
+    );
+    const allCancelledOrRejected = items.every(
+      (item) => item.status === OrderItemStatus.CANCELLED || item.status === OrderItemStatus.REJECTED
+    );
+    const allPackedOrShipped = items.every(
+      (item) =>
+        item.status === OrderItemStatus.PACKED ||
+        item.status === OrderItemStatus.SHIPPED ||
+        item.status === OrderItemStatus.DELIVERED ||
+        item.status === OrderItemStatus.CANCELLED ||
+        item.status === OrderItemStatus.REJECTED
+    );
+    const allDelivered = activeItems.length > 0 && activeItems.every(
+      (item) => item.status === OrderItemStatus.DELIVERED
+    );
+    const hasActiveItems = activeItems.length > 0;
+
+    // If all items are cancelled/rejected, order is cancelled
+    if (allCancelledOrRejected) {
+      return OrderStatus.CANCELLED;
+    }
+
+    // If all active items are delivered, order is delivered
+    if (allDelivered) {
+      return OrderStatus.DELIVERED;
+    }
+
+    // If all items are packed/shipped (or cancelled/rejected) and there are active items, ready to ship
+    if (allPackedOrShipped && hasActiveItems) {
+      return OrderStatus.READY_TO_SHIP;
+    }
+
+    // Check if any items are in return flow
+    const hasReturnItems = items.some(
+      (item) =>
+        item.status === OrderItemStatus.RETURN_REQUESTED ||
+        item.status === OrderItemStatus.RETURN_APPROVED ||
+        item.status === OrderItemStatus.RETURN_IN_TRANSIT ||
+        item.status === OrderItemStatus.RETURN_RECEIVED
+    );
+
+    if (hasReturnItems) {
+      return OrderStatus.RETURN_IN_PROGRESS;
+    }
+
+    // Default to current status or processing
+    return (order.status as OrderStatus) || OrderStatus.PROCESSING;
+  }
 
   public async createOrder(userId: string, orderData: ICreateOrder): Promise<IOrder> {
     const transaction = await dbConnection.transaction();
@@ -260,6 +326,10 @@ export class OrderService implements IOrderService {
       const enrichedOrders = await Promise.all(
         orders.map(async (order) => {
           const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
+          
+          // Ensure user details are preserved (from either order or orderWithItems)
+          const userDetails = orderWithItems?.user || order.user;
+          
           if (orderWithItems && orderWithItems.items) {
             const enrichedItems = await Promise.all(
               orderWithItems.items.map(async (item) => {
@@ -272,7 +342,16 @@ export class OrderService implements IOrderService {
             );
             orderWithItems.items = enrichedItems;
           }
-          return orderWithItems || order;
+          
+          // Return orderWithItems with user details, or fallback to order with user details
+          const finalOrder = orderWithItems || order;
+          
+          // Ensure user details are included
+          if (userDetails && !finalOrder.user) {
+            finalOrder.user = userDetails;
+          }
+          
+          return finalOrder;
         })
       );
 
@@ -287,6 +366,61 @@ export class OrderService implements IOrderService {
       const order = await this.orderRepository.findById(updateData.id);
       if (!order) {
         throw new HttpException(404, "Order not found");
+      }
+
+      // If status is being updated, validate the transition
+      if (updateData.status && updateData.status !== order.status) {
+        const currentStatus = order.status as OrderStatus;
+        const newStatus = updateData.status as OrderStatus;
+
+        // Define allowed status transitions
+        const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
+          [OrderStatus.PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+          [OrderStatus.CONFIRMED]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
+          [OrderStatus.PROCESSING]: [OrderStatus.READY_TO_SHIP, OrderStatus.CANCELLED],
+          [OrderStatus.READY_TO_SHIP]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+          [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED],
+          [OrderStatus.DELIVERED]: [OrderStatus.RETURN_IN_PROGRESS],
+          [OrderStatus.CANCELLED]: [], // Cannot transition from cancelled
+          [OrderStatus.RETURN_IN_PROGRESS]: [OrderStatus.RETURNED, OrderStatus.DELIVERED], // Can revert if return rejected
+          [OrderStatus.RETURNED]: [OrderStatus.REFUND_PENDING],
+          [OrderStatus.REFUND_PENDING]: [OrderStatus.REFUNDED],
+          [OrderStatus.REFUNDED]: [], // Final state
+        };
+
+        // Validate transition
+        if (allowedTransitions[currentStatus] && !allowedTransitions[currentStatus].includes(newStatus)) {
+          throw new HttpException(
+            400,
+            `Invalid status transition from ${currentStatus} to ${newStatus}. Allowed transitions: ${allowedTransitions[currentStatus].join(", ")}`
+          );
+        }
+
+        // Special case: If setting to DELIVERED, verify all items are delivered
+        if (newStatus === OrderStatus.DELIVERED) {
+          const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
+          if (orderWithItems && orderWithItems.items) {
+            const activeItems = orderWithItems.items.filter(
+              (item) => item.status !== OrderItemStatus.CANCELLED && item.status !== OrderItemStatus.REJECTED
+            );
+            const allItemsDelivered = activeItems.length > 0 && activeItems.every(
+              (item) => item.status === OrderItemStatus.DELIVERED
+            );
+            
+            if (!allItemsDelivered) {
+              throw new HttpException(
+                400,
+                "Cannot set order to delivered. All active order items must be delivered first."
+              );
+            }
+          }
+        }
+      }
+
+      // If status is not explicitly set, recalculate based on items
+      if (!updateData.status) {
+        const calculatedStatus = await this.calculateOrderStatus(order.id!);
+        updateData.status = calculatedStatus;
       }
 
       const updatedOrder = await this.orderRepository.update(updateData);
@@ -325,18 +459,18 @@ export class OrderService implements IOrderService {
       }
 
       // Only delivered orders can request returns
-      if (order.status !== "delivered") {
+      if (order.status !== OrderStatus.DELIVERED) {
         throw new HttpException(400, "Only delivered orders can request returns");
       }
 
-      // Check if return already requested
-      if (order.returnRequestStatus) {
+      // Check if return already in progress
+      if (order.returnRequestedAt) {
         throw new HttpException(400, "Return request already exists for this order");
       }
 
       const updatedOrder = await this.orderRepository.update({
         id: requestData.orderId,
-        returnRequestStatus: ReturnRequestStatus.PENDING,
+        status: OrderStatus.RETURN_IN_PROGRESS,
         returnRequestedAt: new Date(),
         notes: requestData.reason ? `${order.notes || ''}\nReturn reason: ${requestData.reason}`.trim() : order.notes,
       } as any);
@@ -357,19 +491,22 @@ export class OrderService implements IOrderService {
         throw new HttpException(404, "Order not found");
       }
 
-      // Only pending or processing orders can request cancellation
-      if (order.status !== "pending" && order.status !== "processing") {
-        throw new HttpException(400, "Only pending or processing orders can request cancellation");
+      // Only pending, confirmed, or processing orders can request cancellation
+      if (
+        order.status !== OrderStatus.PENDING &&
+        order.status !== OrderStatus.CONFIRMED &&
+        order.status !== OrderStatus.PROCESSING
+      ) {
+        throw new HttpException(400, "Only pending, confirmed, or processing orders can request cancellation");
       }
 
       // Check if cancellation already requested
-      if (order.cancellationRequestStatus) {
+      if (order.cancellationRequestedAt) {
         throw new HttpException(400, "Cancellation request already exists for this order");
       }
 
       const updatedOrder = await this.orderRepository.update({
         id: requestData.orderId,
-        cancellationRequestStatus: CancellationRequestStatus.PENDING,
         cancellationRequestedAt: new Date(),
         notes: requestData.reason ? `${order.notes || ''}\nCancellation reason: ${requestData.reason}`.trim() : order.notes,
       } as any);
@@ -390,21 +527,26 @@ export class OrderService implements IOrderService {
         throw new HttpException(404, "Order not found");
       }
 
-      if (!order.returnRequestStatus || order.returnRequestStatus !== ReturnRequestStatus.PENDING) {
+      if (!order.returnRequestedAt || order.status !== OrderStatus.RETURN_IN_PROGRESS) {
         throw new HttpException(400, "No pending return request found for this order");
       }
 
       const updateData: any = {
         id: reviewData.orderId,
-        returnRequestStatus: reviewData.status,
         returnReviewedBy: reviewData.reviewedBy,
         returnReviewedAt: new Date(),
-        returnRejectionReason: reviewData.status === ReturnRequestStatus.REJECTED ? reviewData.rejectionReason : null,
+        returnRejectionReason: reviewData.rejectionReason || null,
       };
 
-      // If return is approved, update order status to returned
-      if (reviewData.status === ReturnRequestStatus.APPROVED) {
-        updateData.status = "returned";
+      // Update order status based on review
+      if (reviewData.status === OrderStatus.RETURNED) {
+        updateData.status = OrderStatus.RETURNED;
+      } else if (reviewData.status === OrderStatus.REFUND_PENDING) {
+        updateData.status = OrderStatus.REFUND_PENDING;
+      } else {
+        // Rejected - revert to delivered
+        updateData.status = OrderStatus.DELIVERED;
+        updateData.returnRejectionReason = reviewData.rejectionReason || null;
       }
 
       const updatedOrder = await this.orderRepository.update(updateData);
@@ -425,21 +567,24 @@ export class OrderService implements IOrderService {
         throw new HttpException(404, "Order not found");
       }
 
-      if (!order.cancellationRequestStatus || order.cancellationRequestStatus !== CancellationRequestStatus.PENDING) {
+      if (!order.cancellationRequestedAt) {
         throw new HttpException(400, "No pending cancellation request found for this order");
       }
 
       const updateData: any = {
         id: reviewData.orderId,
-        cancellationRequestStatus: reviewData.status,
         cancellationReviewedBy: reviewData.reviewedBy,
         cancellationReviewedAt: new Date(),
-        cancellationRejectionReason: reviewData.status === CancellationRequestStatus.REJECTED ? reviewData.rejectionReason : null,
+        cancellationRejectionReason: reviewData.rejectionReason || null,
       };
 
-      // If cancellation is approved, update order status to cancelled
-      if (reviewData.status === CancellationRequestStatus.APPROVED) {
-        updateData.status = "cancelled";
+      // Update order status based on review
+      if (reviewData.status === OrderStatus.CANCELLED) {
+        updateData.status = OrderStatus.CANCELLED;
+      } else {
+        // Rejected - revert to previous status (could be pending, confirmed, or processing)
+        updateData.status = OrderStatus.PROCESSING;
+        updateData.cancellationRejectionReason = reviewData.rejectionReason || null;
       }
 
       const updatedOrder = await this.orderRepository.update(updateData);
@@ -590,7 +735,7 @@ export class OrderService implements IOrderService {
       }
 
       // Check if return already requested
-      if (orderItem.returnRequestStatus) {
+      if (orderItem.status === OrderItemStatus.RETURN_REQUESTED || orderItem.returnRequestedAt) {
         throw new HttpException(400, "Return request already exists for this item");
       }
 
@@ -601,11 +746,11 @@ export class OrderService implements IOrderService {
 
       // Update order item with return request
       const updatedItem = await this.orderRepository.updateOrderItem(requestData.orderItemId, {
-        returnRequestStatus: ReturnRequestStatus.PENDING,
+        status: OrderItemStatus.RETURN_REQUESTED,
         returnRequestedAt: new Date(),
         returnQuantity: requestData.returnQuantity,
         returnReason: requestData.reason || null,
-      });
+      } as any);
 
       return updatedItem;
     } catch (error: any) {
@@ -635,17 +780,300 @@ export class OrderService implements IOrderService {
         throw new HttpException(400, "Order item does not belong to this order");
       }
 
-      if (!orderItem.returnRequestStatus || orderItem.returnRequestStatus !== ReturnRequestStatus.PENDING) {
+      if (orderItem.status !== OrderItemStatus.RETURN_REQUESTED || !orderItem.returnRequestedAt) {
         throw new HttpException(400, "No pending return request found for this item");
       }
 
       // Update order item with review decision
       const updatedItem = await this.orderRepository.updateOrderItem(reviewData.orderItemId, {
-        returnRequestStatus: reviewData.status,
+        status: reviewData.status as OrderItemStatus,
         returnReviewedBy: reviewData.reviewedBy,
         returnReviewedAt: new Date(),
-        returnRejectionReason: reviewData.status === ReturnRequestStatus.REJECTED ? reviewData.rejectionReason : null,
+        returnRejectionReason:
+          reviewData.status === OrderItemStatus.RETURN_REJECTED ? reviewData.rejectionReason : null,
+      } as any);
+
+      return updatedItem;
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async getOrderItemsGroupedByDateAndVendor(): Promise<IOrderItemsGroupedResponse> {
+    try {
+      let orderItems = await this.orderRepository.findOrderItemsLast30Days();
+
+      // Enrich products with signed URLs for images
+      if (orderItems && orderItems.length > 0) {
+        orderItems = await Promise.all(
+          orderItems.map(async (item) => {
+            if (item.product?.id) {
+              try {
+                const enrichedProduct = await this.productService.getProductById(item.product.id);
+                if (enrichedProduct && enrichedProduct.images) {
+                  item.product.images = enrichedProduct.images;
+                }
+              } catch (error) {
+                // If product enrichment fails, keep original product data
+                console.error(`Failed to enrich product ${item.product.id}:`, error);
+              }
+            }
+            return item;
+          })
+        );
+      }
+
+      if (!orderItems || orderItems.length === 0) {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const today = new Date();
+
+        return {
+          groupedItems: [],
+          totalItems: 0,
+          totalAmount: 0,
+          dateRange: {
+            startDate: thirtyDaysAgo.toISOString().split('T')[0],
+            endDate: today.toISOString().split('T')[0],
+          },
+        };
+      }
+
+      // Group by date and vendor
+      const groupedMap = new Map<string, Map<string, IOrderItemWithDetails[]>>();
+
+      orderItems.forEach((item) => {
+        if (!item.vendor || !item.order) {
+          return; // Skip items without vendor or order details
+        }
+
+        // Get date in YYYY-MM-DD format
+        const orderDate = new Date(item.order.createdAt);
+        const dateKey = orderDate.toISOString().split('T')[0];
+        const vendorId = item.vendor.vendorId;
+
+        // Initialize date group if it doesn't exist
+        if (!groupedMap.has(dateKey)) {
+          groupedMap.set(dateKey, new Map());
+        }
+
+        const dateGroup = groupedMap.get(dateKey)!;
+
+        // Initialize vendor group if it doesn't exist
+        if (!dateGroup.has(vendorId)) {
+          dateGroup.set(vendorId, []);
+        }
+
+        // Add item to vendor group
+        dateGroup.get(vendorId)!.push(item);
       });
+
+      // Convert to array format
+      const groupedItems: IOrderItemsByVendorAndDate[] = [];
+
+      groupedMap.forEach((vendorMap, date) => {
+        vendorMap.forEach((items, vendorId) => {
+          if (items.length > 0) {
+            const vendor = items[0].vendor!;
+            const totalAmount = items.reduce((sum, item) => sum + Number(item.totalPrice), 0);
+
+            groupedItems.push({
+              date,
+              vendor: {
+                vendorId: vendor.vendorId,
+                vendorName: vendor.vendorName,
+                contactPerson: vendor.contactPerson,
+                address: vendor.address,
+              },
+              orderItems: items,
+              totalItems: items.length,
+              totalAmount,
+            });
+          }
+        });
+      });
+
+      // Sort by date (newest first), then by vendor name
+      groupedItems.sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.vendor.vendorName.localeCompare(b.vendor.vendorName);
+      });
+
+      // Calculate totals
+      const totalItems = orderItems.length;
+      const totalAmount = orderItems.reduce((sum, item) => sum + Number(item.totalPrice), 0);
+
+      // Get date range
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const today = new Date();
+
+      return {
+        groupedItems,
+        totalItems,
+        totalAmount,
+        dateRange: {
+          startDate: thirtyDaysAgo.toISOString().split('T')[0],
+          endDate: today.toISOString().split('T')[0],
+        },
+      };
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async updateOrderItemStatus(
+    orderItemId: string,
+    status: OrderItemStatus | string,
+    userId: string,
+    userRole: string,
+    rejectionReason?: string
+  ): Promise<IOrderItem> {
+    try {
+      // Get the order item with product details
+      const orderItem = await this.orderRepository.findOrderItemById(orderItemId);
+      if (!orderItem) {
+        throw new HttpException(404, "Order item not found");
+      }
+
+      // Get the product to check ownership
+      const product = await this.productRepository.findById(orderItem.productId);
+      if (!product) {
+        throw new HttpException(404, "Product not found");
+      }
+
+      // Authorization check: Admin can update any item, Vendor can only update items for their products
+      if (userRole !== "admin" && product.userId !== userId) {
+        throw new HttpException(403, "You do not have permission to update this order item");
+      }
+
+      // Validate status transitions (basic validation)
+      const currentStatus = orderItem.status as OrderItemStatus;
+      const newStatus = status as OrderItemStatus;
+
+      // Prevent vendors from setting status to "delivered" - only admins can do this
+      if (userRole !== "admin" && newStatus === OrderItemStatus.DELIVERED) {
+        throw new HttpException(
+          403,
+          "Vendors cannot set order item status to 'delivered'. Only administrators can mark items as delivered."
+        );
+      }
+
+      // Define allowed status transitions
+      const allowedTransitions: Record<OrderItemStatus, OrderItemStatus[]> = {
+        [OrderItemStatus.PENDING]: [OrderItemStatus.ACCEPTED, OrderItemStatus.REJECTED, OrderItemStatus.CANCELLED],
+        [OrderItemStatus.ACCEPTED]: [OrderItemStatus.PROCESSING, OrderItemStatus.CANCELLED],
+        [OrderItemStatus.REJECTED]: [], // Cannot transition from rejected
+        [OrderItemStatus.PROCESSING]: [OrderItemStatus.PICKED, OrderItemStatus.CANCELLED],
+        [OrderItemStatus.PICKED]: [OrderItemStatus.PACKED, OrderItemStatus.CANCELLED],
+        [OrderItemStatus.PACKED]: [OrderItemStatus.SHIPPED, OrderItemStatus.CANCELLED],
+        [OrderItemStatus.SHIPPED]: [OrderItemStatus.DELIVERED],
+        [OrderItemStatus.DELIVERED]: [
+          OrderItemStatus.RETURN_REQUESTED,
+          OrderItemStatus.RETURN_APPROVED,
+          OrderItemStatus.RETURN_REJECTED,
+        ],
+        [OrderItemStatus.CANCELLED]: [], // Cannot transition from cancelled
+        [OrderItemStatus.RETURN_REQUESTED]: [OrderItemStatus.RETURN_APPROVED, OrderItemStatus.RETURN_REJECTED],
+        [OrderItemStatus.RETURN_APPROVED]: [OrderItemStatus.RETURN_IN_TRANSIT],
+        [OrderItemStatus.RETURN_REJECTED]: [], // Cannot transition from rejected
+        [OrderItemStatus.RETURN_IN_TRANSIT]: [OrderItemStatus.RETURN_RECEIVED],
+        [OrderItemStatus.RETURN_RECEIVED]: [OrderItemStatus.REFUND_PENDING],
+        [OrderItemStatus.REFUND_PENDING]: [OrderItemStatus.REFUNDED],
+        [OrderItemStatus.REFUNDED]: [], // Final state
+      };
+
+      // Admin can bypass transition validation, but vendors must follow transitions
+      if (userRole !== "admin" && currentStatus && allowedTransitions[currentStatus]) {
+        if (!allowedTransitions[currentStatus].includes(newStatus)) {
+          throw new HttpException(
+            400,
+            `Invalid status transition from ${currentStatus} to ${newStatus}`
+          );
+        }
+      }
+
+      // Prepare update payload
+      const updatePayload: any = {
+        status: newStatus,
+      };
+
+      // If rejecting, store rejection metadata
+      if (newStatus === OrderItemStatus.REJECTED) {
+        updatePayload.rejectionReason = rejectionReason || "Item rejected by vendor";
+        updatePayload.rejectedBy = userId;
+        updatePayload.rejectedAt = new Date();
+      }
+
+      // Update the order item status
+      const updatedItem = await this.orderRepository.updateOrderItem(orderItemId, updatePayload);
+
+      // If item was rejected, recalculate order total and handle refund
+      if (newStatus === OrderItemStatus.REJECTED && orderItem.orderId) {
+        // Get the order with all items
+        const order = await this.orderRepository.getOrderWithItems(orderItem.orderId);
+        
+        if (order) {
+          // Recalculate total amount (exclude rejected items)
+          const activeItems = order.items?.filter(
+            (item) => item.status !== OrderItemStatus.REJECTED && item.status !== OrderItemStatus.CANCELLED
+          ) || [];
+          
+          const newTotalAmount = activeItems.reduce((sum, item) => {
+            return sum + parseFloat(item.totalPrice.toString());
+          }, 0);
+
+          // Update order total amount
+          await this.orderRepository.update({
+            id: orderItem.orderId,
+            totalAmount: newTotalAmount,
+          } as any);
+
+          // Handle refund if payment was made
+          if (order.paymentStatus === PaymentStatus.PAID) {
+            // Check if all items are rejected/cancelled
+            const allItemsRejectedOrCancelled = order.items?.every(
+              (item) => item.status === OrderItemStatus.REJECTED || item.status === OrderItemStatus.CANCELLED
+            ) || false;
+
+            if (allItemsRejectedOrCancelled) {
+              // All items rejected - full refund
+              await this.orderRepository.update({
+                id: orderItem.orderId,
+                paymentStatus: PaymentStatus.REFUNDED,
+              } as any);
+              
+              // TODO: Integrate with payment gateway to process actual refund
+              // Example: await this.paymentService.processRefund(order.id, order.totalAmount);
+            } else {
+              // Partial refund - only for rejected item
+              const rejectedItemAmount = parseFloat(orderItem.totalPrice.toString());
+              
+              // TODO: Integrate with payment gateway to process partial refund
+              // Example: await this.paymentService.processPartialRefund(order.id, rejectedItemAmount);
+              
+              // Note: Payment status remains "paid" for partial refunds
+              // You may want to track partial refunds separately
+            }
+          }
+        }
+      }
+
+      // Recalculate order status based on all items
+      if (orderItem.orderId) {
+        const calculatedStatus = await this.calculateOrderStatus(orderItem.orderId);
+        await this.orderRepository.update({
+          id: orderItem.orderId,
+          status: calculatedStatus,
+        } as any);
+      }
 
       return updatedItem;
     } catch (error: any) {

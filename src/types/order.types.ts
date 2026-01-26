@@ -1,22 +1,34 @@
 export enum OrderStatus {
   PENDING = "pending",
+  CONFIRMED = "confirmed",
   PROCESSING = "processing",
+  READY_TO_SHIP = "ready_to_ship",
   SHIPPED = "shipped",
   DELIVERED = "delivered",
   CANCELLED = "cancelled",
+  RETURN_IN_PROGRESS = "return_in_progress",
   RETURNED = "returned",
+  REFUND_PENDING = "refund_pending",
+  REFUNDED = "refunded",
 }
 
-export enum ReturnRequestStatus {
+export enum OrderItemStatus {
   PENDING = "pending",
-  APPROVED = "approved",
+  ACCEPTED = "accepted",
   REJECTED = "rejected",
-}
-
-export enum CancellationRequestStatus {
-  PENDING = "pending",
-  APPROVED = "approved",
-  REJECTED = "rejected",
+  PROCESSING = "processing",
+  PICKED = "picked",
+  PACKED = "packed",
+  SHIPPED = "shipped",
+  DELIVERED = "delivered",
+  CANCELLED = "cancelled",
+  RETURN_REQUESTED = "return_requested",
+  RETURN_APPROVED = "return_approved",
+  RETURN_REJECTED = "return_rejected",
+  RETURN_IN_TRANSIT = "return_in_transit",
+  RETURN_RECEIVED = "return_received",
+  REFUND_PENDING = "refund_pending",
+  REFUNDED = "refunded",
 }
 
 export enum PaymentStatus {
@@ -34,6 +46,16 @@ export interface IShippingAddress {
   province?: string;
 }
 
+export interface IOrderUser {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  profileUrl?: string;
+  address?: string;
+}
+
 export interface IOrderItem {
   id?: string;
   orderId?: string;
@@ -42,8 +64,12 @@ export interface IOrderItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  // Return request fields
-  returnRequestStatus?: ReturnRequestStatus | string | null;
+  status?: OrderItemStatus | string;
+  // Rejection metadata fields (for vendor rejection)
+  rejectionReason?: string | null;
+  rejectedBy?: string | null;
+  rejectedAt?: Date | null;
+  // Return request metadata fields (status is now in status field)
   returnRequestedAt?: Date | null;
   returnQuantity?: number | null;
   returnReason?: string | null;
@@ -67,28 +93,17 @@ export interface IOrder {
   email: string;
   phone?: string;
   notes?: string;
-  // Return request fields
-  returnRequestStatus?: ReturnRequestStatus | string | null;
+  items?: IOrderItem[];
+  user?: IOrderUser;
+  // Return/cancellation metadata fields (status is now in status field)
   returnRequestedAt?: Date | null;
   returnReviewedBy?: string | null;
   returnReviewedAt?: Date | null;
   returnRejectionReason?: string | null;
-  // Cancellation request fields
-  cancellationRequestStatus?: CancellationRequestStatus | string | null;
   cancellationRequestedAt?: Date | null;
   cancellationReviewedBy?: string | null;
   cancellationReviewedAt?: Date | null;
   cancellationRejectionReason?: string | null;
-  items?: IOrderItem[];
-  user?: {
-    id: string;
-    fullName: string;
-    email: string;
-    phone: string;
-    role: string;
-    profileUrl?: string;
-    address?: string;
-  };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -122,14 +137,14 @@ export interface IRequestCancellation {
 
 export interface IReviewReturn {
   orderId: string;
-  status: ReturnRequestStatus | string;
+  status: OrderStatus | string; // Uses OrderStatus enum (return_in_progress, returned, etc.)
   reviewedBy: string;
   rejectionReason?: string;
 }
 
 export interface IReviewCancellation {
   orderId: string;
-  status: CancellationRequestStatus | string;
+  status: OrderStatus | string; // Uses OrderStatus enum (cancelled, etc.)
   reviewedBy: string;
   rejectionReason?: string;
 }
@@ -158,7 +173,56 @@ export interface IRequestItemReturn {
 export interface IReviewItemReturn {
   orderId: string;
   orderItemId: string;
-  status: ReturnRequestStatus | string;
+  status: OrderItemStatus | string; // Uses OrderItemStatus enum (return_approved, return_rejected, etc.)
   reviewedBy: string;
   rejectionReason?: string;
+}
+
+export interface IVendorDetails {
+  vendorId: string;
+  vendorName: string;
+  contactPerson: string;
+  address: {
+    street: string;
+    city: string;
+    postal: string;
+    country: string;
+  };
+}
+
+export interface IOrderItemWithDetails extends IOrderItem {
+  order?: {
+    id: string;
+    orderNumber: string;
+    createdAt: Date;
+    customer?: IOrderUser;
+  };
+  product?: {
+    id: string;
+    title: string;
+    sku: string;
+    images?: Array<{
+      index: number;
+      file: string;
+    }>;
+  };
+  vendor?: IVendorDetails;
+}
+
+export interface IOrderItemsByVendorAndDate {
+  date: string; // YYYY-MM-DD format
+  vendor: IVendorDetails;
+  orderItems: IOrderItemWithDetails[];
+  totalItems: number;
+  totalAmount: number;
+}
+
+export interface IOrderItemsGroupedResponse {
+  groupedItems: IOrderItemsByVendorAndDate[];
+  totalItems: number;
+  totalAmount: number;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
 }
