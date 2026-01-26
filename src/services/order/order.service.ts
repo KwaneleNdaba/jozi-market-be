@@ -28,6 +28,8 @@ export class OrderService implements IOrderService {
    * - order.status = delivered when ALL active items are delivered
    * - order.status = shipped when order is shipped (consolidated shipment)
    * - order.status = ready_to_ship when every item is packed/shipped OR cancelled/rejected
+   * - order.status = processing when at least one item is accepted/processing/picked (vendor is working on it)
+   * - order.status = confirmed when at least one item is accepted but none are processing yet
    * - order.status = cancelled when all items are cancelled/rejected
    */
   private async calculateOrderStatus(orderId: string): Promise<OrderStatus> {
@@ -84,8 +86,38 @@ export class OrderService implements IOrderService {
       return OrderStatus.RETURN_IN_PROGRESS;
     }
 
-    // Default to current status or processing
-    return (order.status as OrderStatus) || OrderStatus.PROCESSING;
+    // Check if any items are in processing states (processing, picked)
+    // This means vendor is actively working on the order
+    const hasProcessingItems = activeItems.some(
+      (item) =>
+        item.status === OrderItemStatus.PROCESSING ||
+        item.status === OrderItemStatus.PICKED
+    );
+
+    if (hasProcessingItems) {
+      return OrderStatus.PROCESSING;
+    }
+
+    // Check if at least one item is accepted (vendor accepted the order)
+    const hasAcceptedItems = activeItems.some(
+      (item) => item.status === OrderItemStatus.ACCEPTED
+    );
+
+    if (hasAcceptedItems) {
+      return OrderStatus.CONFIRMED;
+    }
+
+    // If all items are still pending, order is pending
+    const allPending = activeItems.length > 0 && activeItems.every(
+      (item) => item.status === OrderItemStatus.PENDING
+    );
+
+    if (allPending) {
+      return OrderStatus.PENDING;
+    }
+
+    // Default to processing if we have active items but unclear state
+    return hasActiveItems ? OrderStatus.PROCESSING : OrderStatus.PENDING;
   }
 
   public async createOrder(userId: string, orderData: ICreateOrder): Promise<IOrder> {
