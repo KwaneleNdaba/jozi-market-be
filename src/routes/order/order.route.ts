@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { CreateOrderDto, UpdateOrderDto, RequestReturnDto, RequestCancellationDto, ReviewReturnDto, ReviewCancellationDto, RequestItemReturnDto, ReviewItemReturnDto, UpdateOrderItemStatusDto } from "@/dots/order/order.dot";
-import { authorizationMiddleware, adminAuthorizationMiddleware } from "@/middlewares/authorizationMiddleware";
+import { authorizationMiddleware, adminAuthorizationMiddleware, adminOrVendorAuthorizationMiddleware } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
 import type { Routes } from "@/types/routes.interface";
 import { OrderController } from "../../controllers/order/order.controller";
@@ -33,7 +33,7 @@ export class OrderRoute implements Routes {
     // Get orders by vendor ID (grouped by date) - MUST come before /:id route
     this.router.get(
       `${this.path}/vendor/:vendorId`,
-      authorizationMiddleware,
+      adminOrVendorAuthorizationMiddleware,
       this.order.getOrdersByVendorId
     );
 

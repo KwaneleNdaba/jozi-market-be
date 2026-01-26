@@ -240,7 +240,6 @@ export class OrderRepository implements IOrderRepository {
         raw: false,
       });
 
-      // Extract unique order IDs
       const orderIdsSet = new Set<string>();
       orderItems.forEach((item) => {
         const orderId = item.get("orderId") as string;
@@ -255,7 +254,7 @@ export class OrderRepository implements IOrderRepository {
         return [];
       }
 
-      // Now fetch the full orders with all their items
+      // Now fetch the full orders with only items that belong to this vendor
       const orders = await Order.findAll({
         where: {
           id: {
@@ -277,7 +276,10 @@ export class OrderRepository implements IOrderRepository {
               {
                 model: Product,
                 as: "product",
-                required: false,
+                required: true, // Only include items with products
+                where: {
+                  userId: vendorId, // Filter to only products from this vendor
+                },
               },
               {
                 model: ProductVariant,

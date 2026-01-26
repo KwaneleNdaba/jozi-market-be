@@ -613,41 +613,53 @@ export class OrderService implements IOrderService {
       }
 
       // Enrich each order with items and products (with signed URLs)
+      // Note: orders from findByVendorId already have filtered items (only vendor's items)
       const enrichedOrders = await Promise.all(
         orders.map(async (order) => {
-          const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
-          
-          if (!orderWithItems) {
+          // Use the order from findByVendorId which already has filtered items
+          // But we need to enrich the products with signed URLs
+          if (!order.items || order.items.length === 0) {
             return {
               ...order,
               items: [],
+              totalAmount: 0, // Recalculate total for vendor items only
             };
           }
 
-          // Enrich items with product details (with signed URLs)
-          if (orderWithItems.items && orderWithItems.items.length > 0) {
-            const enrichedItems = await Promise.all(
-              orderWithItems.items.map(async (item) => {
-                try {
-                  const product = await this.productService.getProductById(item.productId);
-                  return {
-                    ...item,
-                    product: product || undefined,
-                  };
-                } catch (error) {
-                  return {
-                    ...item,
-                    product: undefined,
-                  };
+          // Items are already filtered by repository to only include vendor's products
+          // Now enrich with product details (with signed URLs)
+          const enrichedItems = await Promise.all(
+            order.items.map(async (item) => {
+              try {
+                const product = await this.productService.getProductById(item.productId);
+                // Verify product belongs to vendor (safety check)
+                if (product && (product as any).userId !== vendorId) {
+                  return null; // Skip items not belonging to vendor (shouldn't happen, but safety check)
                 }
-              })
-            );
-            orderWithItems.items = enrichedItems;
-          } else {
-            orderWithItems.items = [];
-          }
+                return {
+                  ...item,
+                  product: product || undefined,
+                };
+              } catch (error) {
+                // If product fetch fails, skip this item
+                return null;
+              }
+            })
+          );
 
-          return orderWithItems;
+          // Filter out null items (safety check)
+          const validItems = enrichedItems.filter((item) => item !== null) as IOrderItem[];
+
+          // Recalculate total amount for vendor items only
+          const vendorTotalAmount = validItems.reduce((sum, item) => {
+            return sum + parseFloat(item.totalPrice.toString());
+          }, 0);
+
+          return {
+            ...order,
+            items: validItems,
+            totalAmount: vendorTotalAmount, // Override with vendor-specific total
+          };
         })
       );
 
@@ -667,6 +679,7 @@ export class OrderService implements IOrderService {
       });
 
       // Convert map to array and calculate totals for each date group
+      // Note: totalAmount here is already vendor-specific (calculated above)
       const groupedOrders: IOrdersGroupedByDate[] = Array.from(ordersByDate.entries())
         .map(([date, orders]) => {
           const totalAmount = orders.reduce((sum, order) => {
@@ -682,7 +695,7 @@ export class OrderService implements IOrderService {
               return dateB - dateA;
             }),
             totalOrders: orders.length,
-            totalAmount,
+            totalAmount, // This is vendor-specific total
           };
         })
         .sort((a, b) => {
@@ -690,7 +703,7 @@ export class OrderService implements IOrderService {
           return new Date(b.date).getTime() - new Date(a.date).getTime();
         });
 
-      // Calculate overall totals
+      // Calculate overall totals (vendor-specific)
       const totalOrders = enrichedOrders.length;
       const totalAmount = enrichedOrders.reduce((sum, order) => {
         return sum + parseFloat(order.totalAmount.toString());
