@@ -186,7 +186,8 @@ export class App {
     ));
     Container.set(RETURN_SERVICE_TOKEN, new ReturnService(
       Container.get(RETURN_REPOSITORY_TOKEN),
-      Container.get(ORDER_REPOSITORY_TOKEN)
+      Container.get(ORDER_REPOSITORY_TOKEN),
+      Container.get(PRODUCT_SERVICE_TOKEN)
     ));
     Container.set(CART_SERVICE_TOKEN, new CartService(
       Container.get(CART_REPOSITORY_TOKEN),

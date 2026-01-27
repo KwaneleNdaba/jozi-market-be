@@ -4,6 +4,8 @@ import { type IReturnRepository, RETURN_REPOSITORY_TOKEN } from "@/interfaces/re
 import { type IReturnService, RETURN_SERVICE_TOKEN } from "@/interfaces/return/IReturnService.interface";
 import { ORDER_REPOSITORY_TOKEN } from "@/interfaces/order/IOrderRepository.interface";
 import type { IOrderRepository } from "@/interfaces/order/IOrderRepository.interface";
+import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
+import type { IProductService } from "@/interfaces/product/IProductService.interface";
 import { OrderStatus, PaymentStatus } from "@/types/order.types";
 import { ReturnStatus, RefundStatus } from "@/types/return.types";
 import type {
@@ -22,8 +24,74 @@ import OrderItem from "@/models/order-item/orderItem.model";
 export class ReturnService implements IReturnService {
   constructor(
     @Inject(RETURN_REPOSITORY_TOKEN) private readonly returnRepository: IReturnRepository,
-    @Inject(ORDER_REPOSITORY_TOKEN) private readonly orderRepository: IOrderRepository
+    @Inject(ORDER_REPOSITORY_TOKEN) private readonly orderRepository: IOrderRepository,
+    @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService
   ) {}
+
+  private async enrichReturnWithSignedProductUrls(returnRecord: IReturn | null): Promise<IReturn | null> {
+    if (!returnRecord || !returnRecord.items || returnRecord.items.length === 0) {
+      return returnRecord;
+    }
+
+    const enrichedItems = await Promise.all(
+      returnRecord.items.map(async (item) => {
+        const orderItem: any = (item as any).orderItem;
+        const productId: string | undefined = orderItem?.product?.id;
+
+        if (!productId) {
+          return item;
+        }
+
+        try {
+          const enrichedProduct = await this.productService.getProductById(productId);
+          if (enrichedProduct) {
+            return {
+              ...item,
+              orderItem: {
+                ...orderItem,
+                product: enrichedProduct,
+              },
+            } as IReturnItem;
+          }
+        } catch {
+          // If enrichment fails, fall back to original item
+        }
+
+        return item;
+      })
+    );
+
+    return {
+      ...returnRecord,
+      items: enrichedItems,
+    };
+  }
+
+  private async enrichReturnItemWithSignedProductUrls(returnItem: IReturnItem): Promise<IReturnItem> {
+    const orderItem: any = (returnItem as any).orderItem;
+    const productId: string | undefined = orderItem?.product?.id;
+
+    if (!productId) {
+      return returnItem;
+    }
+
+    try {
+      const enrichedProduct = await this.productService.getProductById(productId);
+      if (enrichedProduct) {
+        return {
+          ...returnItem,
+          orderItem: {
+            ...orderItem,
+            product: enrichedProduct,
+          },
+        };
+      }
+    } catch {
+      // Ignore enrichment errors and return original item
+    }
+
+    return returnItem;
+  }
 
   public async createReturn(userId: string, returnData: ICreateReturn): Promise<IReturn> {
     const transaction = await dbConnection.transaction();
@@ -126,7 +194,8 @@ export class ReturnService implements IReturnService {
 
   public async getReturnById(id: string): Promise<IReturn | null> {
     try {
-      return await this.returnRepository.getReturnWithItems(id);
+      const returnRecord = await this.returnRepository.getReturnWithItems(id);
+      return await this.enrichReturnWithSignedProductUrls(returnRecord);
     } catch (error: any) {
       throw new HttpException(500, error.message);
     }
@@ -143,7 +212,8 @@ export class ReturnService implements IReturnService {
           if (!returnRecord || !returnRecord.id) {
             return null;
           }
-          return await this.returnRepository.getReturnWithItems(returnRecord.id);
+          const fullReturn = await this.returnRepository.getReturnWithItems(returnRecord.id);
+          return await this.enrichReturnWithSignedProductUrls(fullReturn);
         })
       );
       // Filter out any null results
@@ -158,7 +228,8 @@ export class ReturnService implements IReturnService {
       const returns = await this.returnRepository.findAll(status);
       return await Promise.all(
         returns.map(async (returnRecord) => {
-          return await this.returnRepository.getReturnWithItems(returnRecord.id!);
+          const fullReturn = await this.returnRepository.getReturnWithItems(returnRecord.id!);
+          return (await this.enrichReturnWithSignedProductUrls(fullReturn)) as IReturn;
         })
       );
     } catch (error: any) {
@@ -194,12 +265,26 @@ export class ReturnService implements IReturnService {
           for (const returnItem of returnWithItems.items) {
             const orderItem = await this.orderRepository.findOrderItemById(returnItem.orderItemId);
             if (orderItem) {
-              const itemRefund = (parseFloat(orderItem.unitPrice.toString()) * returnItem.quantity);
+              const itemRefund = parseFloat(orderItem.unitPrice.toString()) * returnItem.quantity;
               refundAmount += itemRefund;
             }
           }
           updateData.refundAmount = refundAmount;
           updateData.refundStatus = RefundStatus.PENDING;
+
+          // Deduct the approved refund from the order's totalAmount
+          const orderRow = await Order.findByPk(returnRecord.orderId, { transaction });
+          if (orderRow) {
+            const currentTotal = parseFloat((orderRow.get("totalAmount") as any).toString());
+            const newTotal = Math.max(0, currentTotal - refundAmount);
+            await Order.update(
+              { totalAmount: newTotal },
+              {
+                where: { id: returnRecord.orderId },
+                transaction,
+              }
+            );
+          }
 
           // Mark order and its items as having an approved return
           await Order.update(
@@ -254,7 +339,8 @@ export class ReturnService implements IReturnService {
 
       await transaction.commit();
 
-      return await this.returnRepository.getReturnWithItems(updatedReturn.id!);
+      const fullReturn = await this.returnRepository.getReturnWithItems(updatedReturn.id!);
+      return (await this.enrichReturnWithSignedProductUrls(fullReturn)) as IReturn;
     } catch (error: any) {
       try {
         await transaction.rollback();
@@ -318,7 +404,7 @@ export class ReturnService implements IReturnService {
         }
       }
 
-      return updatedItem;
+      return await this.enrichReturnItemWithSignedProductUrls(updatedItem);
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;
@@ -413,7 +499,8 @@ export class ReturnService implements IReturnService {
 
       const updatedReturn = await this.returnRepository.update(updateData);
 
-      return await this.returnRepository.getReturnWithItems(updatedReturn.id!);
+      const fullReturn = await this.returnRepository.getReturnWithItems(updatedReturn.id!);
+      return (await this.enrichReturnWithSignedProductUrls(fullReturn)) as IReturn;
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;
@@ -535,7 +622,8 @@ export class ReturnService implements IReturnService {
         }
       }
 
-      return await this.returnRepository.getReturnWithItems(updatedReturn.id!);
+      const fullReturn = await this.returnRepository.getReturnWithItems(updatedReturn.id!);
+      return (await this.enrichReturnWithSignedProductUrls(fullReturn)) as IReturn;
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;
