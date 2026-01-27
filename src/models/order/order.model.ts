@@ -13,6 +13,10 @@ class Order extends Model {
   public phone?: string;
   public notes?: string;
 
+  // Return flags
+  public isReturnRequested?: boolean;
+  public isReturnApproved?: boolean;
+
   // Cancellation request fields (KEEP)
   public cancellationRequestedAt?: Date | null;
   public cancellationReviewedBy?: string | null;
@@ -82,6 +86,18 @@ class Order extends Model {
         notes: {
           type: DataTypes.TEXT,
           allowNull: true,
+        },
+
+        // Return flags
+        isReturnRequested: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        isReturnApproved: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
         },
 
         // Cancellation request fields (KEEP)

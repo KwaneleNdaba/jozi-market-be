@@ -142,6 +142,13 @@ export class OrderRepository implements IOrderRepository {
       if (updateData.notes !== undefined) updatePayload.notes = updateData.notes;
       if ((updateData as any).totalAmount !== undefined) updatePayload.totalAmount = (updateData as any).totalAmount;
       if ((updateData as any).orderNumber !== undefined) updatePayload.orderNumber = (updateData as any).orderNumber;
+      // Return flags
+      if ((updateData as any).isReturnRequested !== undefined) {
+        updatePayload.isReturnRequested = (updateData as any).isReturnRequested;
+      }
+      if ((updateData as any).isReturnApproved !== undefined) {
+        updatePayload.isReturnApproved = (updateData as any).isReturnApproved;
+      }
       // Cancellation request metadata fields
       if ((updateData as any).cancellationRequestedAt !== undefined) updatePayload.cancellationRequestedAt = (updateData as any).cancellationRequestedAt;
       if ((updateData as any).cancellationReviewedBy !== undefined) updatePayload.cancellationReviewedBy = (updateData as any).cancellationReviewedBy;
@@ -330,6 +337,13 @@ export class OrderRepository implements IOrderRepository {
       if (updateData.rejectionReason !== undefined) updatePayload.rejectionReason = updateData.rejectionReason;
       if (updateData.rejectedBy !== undefined) updatePayload.rejectedBy = updateData.rejectedBy;
       if (updateData.rejectedAt !== undefined) updatePayload.rejectedAt = updateData.rejectedAt;
+      // Return flags
+      if ((updateData as any).isReturnRequested !== undefined) {
+        updatePayload.isReturnRequested = (updateData as any).isReturnRequested;
+      }
+      if ((updateData as any).isReturnApproved !== undefined) {
+        updatePayload.isReturnApproved = (updateData as any).isReturnApproved;
+      }
 
       await orderItem.update(updatePayload);
 

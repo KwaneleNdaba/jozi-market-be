@@ -15,6 +15,10 @@ class OrderItem extends Model {
   public rejectedBy?: string | null;
   public rejectedAt?: Date | null;
 
+  // Return flags
+  public isReturnRequested?: boolean;
+  public isReturnApproved?: boolean;
+
   public createdAt?: Date;
   public updatedAt?: Date;
 
@@ -91,6 +95,18 @@ class OrderItem extends Model {
         rejectedAt: {
           type: DataTypes.DATE,
           allowNull: true,
+        },
+
+        // Return flags
+        isReturnRequested: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        isReturnApproved: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
         },
       },
       {

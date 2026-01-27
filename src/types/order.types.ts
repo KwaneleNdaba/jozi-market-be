@@ -54,6 +54,9 @@ export interface IOrderItem {
   unitPrice: number;
   totalPrice: number;
   status?: OrderItemStatus | string;
+  // Return flags
+  isReturnRequested?: boolean;
+  isReturnApproved?: boolean;
   // Rejection metadata fields (for vendor rejection)
   rejectionReason?: string | null;
   rejectedBy?: string | null;
@@ -77,6 +80,9 @@ export interface IOrder {
   notes?: string;
   items?: IOrderItem[];
   user?: IOrderUser;
+  // Return flags
+  isReturnRequested?: boolean;
+  isReturnApproved?: boolean;
   // Cancellation metadata fields
   cancellationRequestedAt?: Date | null;
   cancellationReviewedBy?: string | null;

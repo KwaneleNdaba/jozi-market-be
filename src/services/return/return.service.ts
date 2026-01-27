@@ -32,32 +32,21 @@ export class ReturnService implements IReturnService {
       // Verify order exists and belongs to user
       const order = await this.orderRepository.findById(returnData.orderId);
       if (!order) {
-        await transaction.rollback();
         throw new HttpException(404, "Order not found");
       }
 
       if (order.userId !== userId) {
-        await transaction.rollback();
         throw new HttpException(403, "You do not have permission to return this order");
       }
 
       // Only delivered orders can be returned
       if (order.status !== OrderStatus.DELIVERED) {
-        await transaction.rollback();
         throw new HttpException(400, "Only delivered orders can be returned");
-      }
-
-      // Check if return already exists for this order
-      const existingReturn = await this.returnRepository.findByOrderId(returnData.orderId);
-      if (existingReturn && existingReturn.status !== ReturnStatus.CANCELLED) {
-        await transaction.rollback();
-        throw new HttpException(400, "Return request already exists for this order");
       }
 
       // Validate return items
       const orderWithItems = await this.orderRepository.getOrderWithItems(returnData.orderId);
       if (!orderWithItems || !orderWithItems.items || orderWithItems.items.length === 0) {
-        await transaction.rollback();
         throw new HttpException(400, "Order has no items");
       }
 
@@ -65,12 +54,15 @@ export class ReturnService implements IReturnService {
       for (const returnItem of returnData.items) {
         const orderItem = orderWithItems.items.find((item) => item.id === returnItem.orderItemId);
         if (!orderItem) {
-          await transaction.rollback();
           throw new HttpException(404, `Order item ${returnItem.orderItemId} not found`);
         }
 
+        // Prevent multiple returns for the same order item
+        if ((orderItem as any).isReturnRequested) {
+          throw new HttpException(400, "Return has already been requested for one or more items in this request");
+        }
+
         if (returnItem.quantity <= 0 || returnItem.quantity > orderItem.quantity) {
-          await transaction.rollback();
           throw new HttpException(
             400,
             `Return quantity must be between 1 and ${orderItem.quantity} for item ${returnItem.orderItemId}`
@@ -78,8 +70,11 @@ export class ReturnService implements IReturnService {
         }
       }
 
-      // Create return record
-      const returnRecord = await this.returnRepository.create(returnData);
+      // Create return record - ensure userId is included
+      const returnRecord = await this.returnRepository.create({
+        ...returnData,
+        userId, // Use the userId from the authenticated user, not from request body
+      });
 
       // Create return items
       for (const returnItem of returnData.items) {
@@ -92,14 +87,36 @@ export class ReturnService implements IReturnService {
         // Note: OrderItem status remains "delivered" - return status is tracked in ReturnItem
       }
 
-      // Note: Order status remains "delivered" - return status is tracked in Return model
+      // Set return flags on order and affected order items
+      await Order.update(
+        { isReturnRequested: true },
+        {
+          where: { id: returnData.orderId },
+          transaction,
+        }
+      );
+      const orderItemIds = returnData.items.map((item) => item.orderItemId);
+      if (orderItemIds.length > 0) {
+        await OrderItem.update(
+          { isReturnRequested: true },
+          {
+            where: { id: orderItemIds },
+            transaction,
+          }
+        );
+      }
 
       await transaction.commit();
 
       // Fetch and return the complete return record
       return await this.returnRepository.getReturnWithItems(returnRecord.id!);
     } catch (error: any) {
-      await transaction.rollback();
+      // Rollback only if the transaction is still active
+      try {
+        await transaction.rollback();
+      } catch {
+        // ignore double-rollback errors
+      }
       if (error instanceof HttpException) {
         throw error;
       }
@@ -155,12 +172,10 @@ export class ReturnService implements IReturnService {
     try {
       const returnRecord = await this.returnRepository.findById(reviewData.returnId);
       if (!returnRecord) {
-        await transaction.rollback();
         throw new HttpException(404, "Return not found");
       }
 
       if (returnRecord.status !== ReturnStatus.REQUESTED) {
-        await transaction.rollback();
         throw new HttpException(400, "Return is not in requested status");
       }
 
@@ -185,6 +200,31 @@ export class ReturnService implements IReturnService {
           }
           updateData.refundAmount = refundAmount;
           updateData.refundStatus = RefundStatus.PENDING;
+
+          // Mark order and its items as having an approved return
+          await Order.update(
+            {
+              isReturnRequested: true,
+              isReturnApproved: true,
+            },
+            {
+              where: { id: returnRecord.orderId },
+              transaction,
+            }
+          );
+          const orderItemIds = returnWithItems.items.map((item) => item.orderItemId);
+          if (orderItemIds.length > 0) {
+            await OrderItem.update(
+              {
+                isReturnRequested: true,
+                isReturnApproved: true,
+              },
+              {
+                where: { id: orderItemIds },
+                transaction,
+              }
+            );
+          }
         }
       } else if (reviewData.status === ReturnStatus.REJECTED) {
         updateData.status = ReturnStatus.REJECTED;
@@ -195,9 +235,18 @@ export class ReturnService implements IReturnService {
           id: returnRecord.orderId,
           status: OrderStatus.DELIVERED,
         } as any);
+        // Clear return approval flag on order (request flag remains for history)
+        await Order.update(
+          {
+            isReturnApproved: false,
+          },
+          {
+            where: { id: returnRecord.orderId },
+            transaction,
+          }
+        );
         // Note: OrderItem status remains "delivered" - return status is tracked in ReturnItem
       } else {
-        await transaction.rollback();
         throw new HttpException(400, "Invalid review status. Must be approved or rejected");
       }
 
@@ -207,7 +256,11 @@ export class ReturnService implements IReturnService {
 
       return await this.returnRepository.getReturnWithItems(updatedReturn.id!);
     } catch (error: any) {
-      await transaction.rollback();
+      try {
+        await transaction.rollback();
+      } catch {
+        // ignore double-rollback errors
+      }
       if (error instanceof HttpException) {
         throw error;
       }
@@ -239,7 +292,33 @@ export class ReturnService implements IReturnService {
         // Note: OrderItem status remains "delivered" - return status is tracked in ReturnItem
       }
 
-      return await this.returnRepository.updateReturnItem(reviewData.returnItemId, updateData);
+      const updatedItem = await this.returnRepository.updateReturnItem(reviewData.returnItemId, updateData);
+
+      // Update return flags on the underlying order item
+      if (updatedItem.orderItemId) {
+        if (reviewData.status === ReturnStatus.APPROVED) {
+          await OrderItem.update(
+            {
+              isReturnRequested: true,
+              isReturnApproved: true,
+            },
+            {
+              where: { id: updatedItem.orderItemId },
+            }
+          );
+        } else if (reviewData.status === ReturnStatus.REJECTED) {
+          await OrderItem.update(
+            {
+              isReturnApproved: false,
+            },
+            {
+              where: { id: updatedItem.orderItemId },
+            }
+          );
+        }
+      }
+
+      return updatedItem;
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;
@@ -416,22 +495,45 @@ export class ReturnService implements IReturnService {
         status: ReturnStatus.CANCELLED,
       });
 
-        // Revert order status back to delivered
-        await this.orderRepository.update({
-          id: returnRecord.orderId,
-          status: OrderStatus.DELIVERED,
-        } as any);
+      // Revert order status back to delivered
+      await this.orderRepository.update({
+        id: returnRecord.orderId,
+        status: OrderStatus.DELIVERED,
+      } as any);
 
-        // Revert all return items
-        const returnWithItems = await this.returnRepository.getReturnWithItems(returnId);
-        if (returnWithItems && returnWithItems.items) {
-          for (const returnItem of returnWithItems.items) {
-            await this.returnRepository.updateReturnItem(returnItem.id!, {
-              status: ReturnStatus.CANCELLED,
-            });
-            // Note: OrderItem status remains "delivered" - return status is tracked in ReturnItem
-          }
+      // Clear approval flag on order (request flag remains true to indicate a historical request)
+      await Order.update(
+        {
+          isReturnApproved: false,
+        },
+        {
+          where: { id: returnRecord.orderId },
         }
+      );
+
+      // Revert all return items and clear approval flags
+      const returnWithItems = await this.returnRepository.getReturnWithItems(returnId);
+      if (returnWithItems && returnWithItems.items) {
+        const orderItemIds = returnWithItems.items.map((item) => item.orderItemId);
+
+        for (const returnItem of returnWithItems.items) {
+          await this.returnRepository.updateReturnItem(returnItem.id!, {
+            status: ReturnStatus.CANCELLED,
+          });
+          // Note: OrderItem status remains "delivered" - return status is tracked in ReturnItem
+        }
+
+        if (orderItemIds.length > 0) {
+          await OrderItem.update(
+            {
+              isReturnApproved: false,
+            },
+            {
+              where: { id: orderItemIds },
+            }
+          );
+        }
+      }
 
       return await this.returnRepository.getReturnWithItems(updatedReturn.id!);
     } catch (error: any) {
