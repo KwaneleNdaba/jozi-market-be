@@ -17,12 +17,22 @@ export class SocketService {
   }
 
   public initialize(server: HTTPServer): void {
+    // Allow multiple origins for development and production
+    const allowedOrigins = [
+      FRONTEND_URL as string,
+      "https://jozi-market.vercel.app", // Production
+    ].filter(Boolean);
+
     this.io = new SocketIOServer(server, {
       cors: {
-        origin: FRONTEND_URL as string,
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true,
       },
+      transports: ["websocket", "polling"],
+      allowEIO3: true,
+      pingTimeout: 60000,
+      pingInterval: 25000,
     });
 
     this.io.on("connection", (socket) => {
