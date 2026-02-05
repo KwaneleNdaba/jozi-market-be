@@ -3,7 +3,7 @@ import { Container } from "typedi";
 import { HttpException } from "@/exceptions/HttpException";
 import { ORDER_SERVICE_TOKEN } from "@/interfaces/order/IOrderService.interface";
 import type { CustomResponse } from "@/types/response.interface";
-import type { IOrder, IRequestCancellation, IReviewCancellation, IVendorOrdersResponse, IOrderItem, IOrderItemsGroupedResponse } from "@/types/order.types";
+import type { IOrder, IRequestCancellation, IVendorOrdersResponse, IOrderItem, IOrderItemsGroupedResponse } from "@/types/order.types";
 
 export class OrderController {
   private readonly orderService: any;
@@ -160,27 +160,7 @@ export class OrderController {
 
       const response: CustomResponse<IOrder> = {
         data: order,
-        message: "Cancellation request submitted successfully",
-        error: false,
-      };
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  public reviewCancellation = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const reviewData = req.body;
-      const order = await this.orderService.reviewCancellation(reviewData);
-
-      const response: CustomResponse<IOrder> = {
-        data: order,
-        message: "Cancellation request reviewed successfully",
+        message: "Order cancelled successfully",
         error: false,
       };
       res.status(200).json(response);

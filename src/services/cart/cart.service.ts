@@ -2,20 +2,21 @@ import { Inject, Service } from "typedi";
 import { HttpException } from "@/exceptions/HttpException";
 import { type ICartRepository, CART_REPOSITORY_TOKEN } from "@/interfaces/cart/ICartRepository.interface";
 import { type ICartService, CART_SERVICE_TOKEN } from "@/interfaces/cart/ICartService.interface";
+import { INVENTORY_SERVICE_TOKEN } from "@/interfaces/inventory/IInventoryService.interface";
+import type { IInventoryService } from "@/interfaces/inventory/IInventoryService.interface";
 import { PRODUCT_REPOSITORY_TOKEN } from "@/interfaces/product/IProductRepository.interface";
 import type { IProductRepository } from "@/interfaces/product/IProductRepository.interface";
 import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import type { IProductService } from "@/interfaces/product/IProductService.interface";
 import type { ICart, ICartItem, IAddToCart, IUpdateCartItem } from "@/types/cart.types";
-import Product from "@/models/product/product.model";
-import ProductVariant from "@/models/product-variant/productVariant.model";
 
 @Service({ id: CART_SERVICE_TOKEN })
 export class CartService implements ICartService {
   constructor(
     @Inject(CART_REPOSITORY_TOKEN) private readonly cartRepository: ICartRepository,
     @Inject(PRODUCT_REPOSITORY_TOKEN) private readonly productRepository: IProductRepository,
-    @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService
+    @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService,
+    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService
   ) {}
 
   public async getCart(userId: string): Promise<ICart> {
@@ -63,7 +64,7 @@ export class CartService implements ICartService {
         throw new HttpException(400, "Product is not available");
       }
 
-      // If variant is specified, verify it exists and is active
+      // If variant is specified, verify it exists and is active; check/reserve inventory
       if (itemData.productVariantId) {
         const variant = product.variants?.find((v: any) => v.id === itemData.productVariantId);
         if (!variant) {
@@ -72,13 +73,18 @@ export class CartService implements ICartService {
         if (variant.status !== "Active") {
           throw new HttpException(400, "Product variant is not available");
         }
-        // Check stock
-        if (variant.stock < itemData.quantity) {
+        const available = await this.inventoryService.getAvailableQuantity({
+          productVariantId: itemData.productVariantId,
+        });
+        if (available < itemData.quantity) {
           throw new HttpException(400, "Insufficient stock for this variant");
         }
       } else {
-        // Check initial stock for products without variants
-        if (product.technicalDetails?.initialStock !== undefined && product.technicalDetails.initialStock < itemData.quantity) {
+        // Products without variants: check/reserve inventory by productId
+        const available = await this.inventoryService.getAvailableQuantity({
+          productId: itemData.productId,
+        });
+        if (available < itemData.quantity) {
           throw new HttpException(400, "Insufficient stock");
         }
       }
@@ -94,12 +100,25 @@ export class CartService implements ICartService {
       );
 
       if (existingItem) {
-        // Update quantity
+        // Reserve additional quantity only
         const newQuantity = existingItem.quantity + itemData.quantity;
+        if (itemData.productVariantId) {
+          await this.inventoryService.reserve({
+            productVariantId: itemData.productVariantId,
+            quantity: itemData.quantity,
+            referenceType: "cart",
+          });
+        } else {
+          await this.inventoryService.reserve({
+            productId: itemData.productId,
+            quantity: itemData.quantity,
+            referenceType: "cart",
+          });
+        }
         const updatedItem = await this.cartRepository.updateCartItem({
           id: existingItem.id!,
           quantity: newQuantity,
-        });
+        } as IUpdateCartItem);
 
         // Enrich with product details (with signed URLs)
         const enrichedProduct = await this.productService.getProductById(updatedItem.productId);
@@ -108,6 +127,19 @@ export class CartService implements ICartService {
           product: enrichedProduct || undefined,
         };
       } else {
+        if (itemData.productVariantId) {
+          await this.inventoryService.reserve({
+            productVariantId: itemData.productVariantId,
+            quantity: itemData.quantity,
+            referenceType: "cart",
+          });
+        } else {
+          await this.inventoryService.reserve({
+            productId: itemData.productId,
+            quantity: itemData.quantity,
+            referenceType: "cart",
+          });
+        }
         // Add new item
         const newItem = await this.cartRepository.addCartItem(cart.id!, {
           productId: itemData.productId,
@@ -154,14 +186,37 @@ export class CartService implements ICartService {
       }
 
       if (cartItem.productVariantId) {
-        const variant = product.variants?.find((v: any) => v.id === cartItem.productVariantId);
-        if (variant && variant.stock < updateData.quantity) {
+        const available = await this.inventoryService.getAvailableQuantity({
+          productVariantId: cartItem.productVariantId,
+        });
+        if (available < updateData.quantity) {
           throw new HttpException(400, "Insufficient stock for this variant");
         }
+        await this.inventoryService.release({
+          productVariantId: cartItem.productVariantId,
+          quantity: cartItem.quantity,
+        });
+        await this.inventoryService.reserve({
+          productVariantId: cartItem.productVariantId,
+          quantity: updateData.quantity,
+          referenceType: "cart",
+        });
       } else {
-        if (product.technicalDetails?.initialStock !== undefined && product.technicalDetails.initialStock < updateData.quantity) {
+        const available = await this.inventoryService.getAvailableQuantity({
+          productId: cartItem.productId,
+        });
+        if (available < updateData.quantity) {
           throw new HttpException(400, "Insufficient stock");
         }
+        await this.inventoryService.release({
+          productId: cartItem.productId,
+          quantity: cartItem.quantity,
+        });
+        await this.inventoryService.reserve({
+          productId: cartItem.productId,
+          quantity: updateData.quantity,
+          referenceType: "cart",
+        });
       }
 
       const updatedItem = await this.cartRepository.updateCartItem(updateData);
@@ -197,6 +252,17 @@ export class CartService implements ICartService {
         throw new HttpException(403, "Cart item does not belong to your cart");
       }
 
+      if (cartItem.productVariantId) {
+        await this.inventoryService.release({
+          productVariantId: cartItem.productVariantId,
+          quantity: cartItem.quantity,
+        });
+      } else {
+        await this.inventoryService.release({
+          productId: cartItem.productId,
+          quantity: cartItem.quantity,
+        });
+      }
       await this.cartRepository.deleteCartItem(cartItemId);
     } catch (error: any) {
       if (error instanceof HttpException) {
@@ -208,11 +274,25 @@ export class CartService implements ICartService {
 
   public async clearCart(userId: string): Promise<void> {
     try {
-      const cart = await this.cartRepository.findCartByUserId(userId);
+      const cart = await this.cartRepository.getCartWithItems(userId);
       if (!cart) {
         throw new HttpException(404, "Cart not found");
       }
-
+      if (cart.items && cart.items.length > 0) {
+        for (const item of cart.items) {
+          if (item.productVariantId) {
+            await this.inventoryService.release({
+              productVariantId: item.productVariantId,
+              quantity: item.quantity,
+            });
+          } else {
+            await this.inventoryService.release({
+              productId: item.productId,
+              quantity: item.quantity,
+            });
+          }
+        }
+      }
       await this.cartRepository.clearCart(cart.id!);
     } catch (error: any) {
       if (error instanceof HttpException) {

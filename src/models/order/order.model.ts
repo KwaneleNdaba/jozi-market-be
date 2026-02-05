@@ -16,6 +16,7 @@ class Order extends Model {
   // Return flags
   public isReturnRequested?: boolean;
   public isReturnApproved?: boolean;
+  public isReturnReviewed?: boolean;
 
   // Cancellation request fields (KEEP)
   public cancellationRequestedAt?: Date | null;
@@ -95,6 +96,11 @@ class Order extends Model {
           defaultValue: false,
         },
         isReturnApproved: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        isReturnReviewed: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,

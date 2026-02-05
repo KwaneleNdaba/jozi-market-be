@@ -149,6 +149,9 @@ export class OrderRepository implements IOrderRepository {
       if ((updateData as any).isReturnApproved !== undefined) {
         updatePayload.isReturnApproved = (updateData as any).isReturnApproved;
       }
+      if ((updateData as any).isReturnReviewed !== undefined) {
+        updatePayload.isReturnReviewed = (updateData as any).isReturnReviewed;
+      }
       // Cancellation request metadata fields
       if ((updateData as any).cancellationRequestedAt !== undefined) updatePayload.cancellationRequestedAt = (updateData as any).cancellationRequestedAt;
       if ((updateData as any).cancellationReviewedBy !== undefined) updatePayload.cancellationReviewedBy = (updateData as any).cancellationReviewedBy;
@@ -344,6 +347,9 @@ export class OrderRepository implements IOrderRepository {
       if ((updateData as any).isReturnApproved !== undefined) {
         updatePayload.isReturnApproved = (updateData as any).isReturnApproved;
       }
+      if ((updateData as any).isReturnReviewed !== undefined) {
+        updatePayload.isReturnReviewed = (updateData as any).isReturnReviewed;
+      }
 
       await orderItem.update(updatePayload);
 
@@ -397,7 +403,20 @@ export class OrderRepository implements IOrderRepository {
                 attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
               },
             ],
-            attributes: ["id", "orderNumber", "createdAt"],
+            // Include key order-level fields so the endpoint has
+            // full order context (status, payment, totals, etc.)
+            attributes: [
+              "id",
+              "orderNumber",
+              "createdAt",
+              "status",
+              "paymentStatus",
+              "totalAmount",
+              "shippingAddress",
+              "email",
+              "phone",
+              "notes",
+            ],
           },
           {
             model: Product,
@@ -456,12 +475,21 @@ export class OrderRepository implements IOrderRepository {
 
         return {
           ...itemData,
-          order: itemData.order ? {
-            id: itemData.order.id,
-            orderNumber: itemData.order.orderNumber,
-            createdAt: itemData.order.createdAt,
-            customer: customerDetails,
-          } : undefined,
+          order: itemData.order
+            ? {
+                id: itemData.order.id,
+                orderNumber: itemData.order.orderNumber,
+                createdAt: itemData.order.createdAt,
+                status: itemData.order.status,
+                paymentStatus: itemData.order.paymentStatus,
+                totalAmount: itemData.order.totalAmount,
+                shippingAddress: itemData.order.shippingAddress,
+                email: itemData.order.email,
+                phone: itemData.order.phone,
+                notes: itemData.order.notes,
+                customer: customerDetails,
+              }
+            : undefined,
           product: itemData.product ? {
             id: itemData.product.id,
             title: itemData.product.title,

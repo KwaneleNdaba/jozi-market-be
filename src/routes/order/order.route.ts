@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { CreateOrderDto, UpdateOrderDto, RequestCancellationDto, ReviewCancellationDto, UpdateOrderItemStatusDto } from "@/dots/order/order.dot";
+import { CreateOrderDto, UpdateOrderDto, RequestCancellationDto, UpdateOrderItemStatusDto } from "@/dots/order/order.dot";
 import { authorizationMiddleware, adminAuthorizationMiddleware, adminOrVendorAuthorizationMiddleware } from "@/middlewares/authorizationMiddleware";
 import { ValidationMiddleware } from "@/middlewares/ValidationMiddleware";
 import type { Routes } from "@/types/routes.interface";
@@ -51,20 +51,12 @@ export class OrderRoute implements Routes {
       this.order.getOrderByOrderNumber
     );
 
-    // Request cancellation (authenticated users only) - MUST come before /:id route
+    // Cancel order (authenticated users only) - MUST come before /:id route
     this.router.post(
       `${this.path}/cancellation`,
       authorizationMiddleware,
       ValidationMiddleware(RequestCancellationDto),
       this.order.requestCancellation
-    );
-
-    // Review cancellation request (admin only) - MUST come before /:id route
-    this.router.put(
-      `${this.path}/cancellation/review`,
-      adminAuthorizationMiddleware,
-      ValidationMiddleware(ReviewCancellationDto),
-      this.order.reviewCancellation
     );
 
     // Update order item status (vendor for their products, admin for any) - MUST come before /:id route

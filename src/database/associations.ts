@@ -18,6 +18,9 @@ import Order from "@/models/order/order.model";
 import OrderItem from "@/models/order-item/orderItem.model";
 import Return from "@/models/return/return.model";
 import ReturnItem from "@/models/return-item/returnItem.model";
+import Inventory from "@/models/inventory/inventory.model";
+import InventoryMovement from "@/models/inventory-movement/inventoryMovement.model";
+import InventoryRestock from "@/models/inventory-restock/inventoryRestock.model";
 
 export function setupAssociations() {
   // User - RefreshToken
@@ -374,6 +377,62 @@ export function setupAssociations() {
   ProductVariant.hasMany(OrderItem, {
     foreignKey: "productVariantId",
     as: "orderItems",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Inventory - ProductVariant relationship
+  Inventory.belongsTo(ProductVariant, {
+    foreignKey: "productVariantId",
+    as: "variant",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  ProductVariant.hasOne(Inventory, {
+    foreignKey: "productVariantId",
+    as: "inventory",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // Inventory - Product relationship (for products without variants)
+  Inventory.belongsTo(Product, {
+    foreignKey: "productId",
+    as: "product",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Product.hasOne(Inventory, {
+    foreignKey: "productId",
+    as: "inventory",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // InventoryMovement - ProductVariant relationship
+  InventoryMovement.belongsTo(ProductVariant, {
+    foreignKey: "productVariantId",
+    as: "variant",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  ProductVariant.hasMany(InventoryMovement, {
+    foreignKey: "productVariantId",
+    as: "movements",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+
+  // InventoryRestock - ProductVariant relationship
+  InventoryRestock.belongsTo(ProductVariant, {
+    foreignKey: "productVariantId",
+    as: "variant",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  ProductVariant.hasMany(InventoryRestock, {
+    foreignKey: "productVariantId",
+    as: "restocks",
     onDelete: "CASCADE",
     onUpdate: "CASCADE",
   });

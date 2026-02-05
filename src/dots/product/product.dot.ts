@@ -11,20 +11,6 @@ import {
 import { Type } from "class-transformer";
 import { ProductStatus } from "@/types/product.types";
 
-class ArtisanNotesDto {
-  @IsString()
-  @IsNotEmpty()
-  public hook: string;
-
-  @IsString()
-  @IsNotEmpty()
-  public story: string;
-
-  @IsArray()
-  @IsString({ each: true })
-  public notes: string[];
-}
-
 class ProductImageDto {
   @IsNumber()
   public index: number;
@@ -60,7 +46,7 @@ class TechnicalDetailsDto {
   public subcategoryId?: string;
 
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   public regularPrice: number;
 
   @IsOptional()
@@ -83,9 +69,9 @@ class ProductVariantDto {
   @IsNotEmpty()
   public sku: string;
 
+  @IsOptional()
   @IsNumber()
-  @IsNotEmpty()
-  public price: number;
+  public price?: number; // Optional: Uses product regularPrice if not set
 
   @IsOptional()
   @IsNumber()
@@ -118,20 +104,8 @@ export class CreateProductDto {
   public status: ProductStatus | string;
 
   @ValidateNested()
-  @Type(() => ArtisanNotesDto)
-  public artisanNotes: ArtisanNotesDto;
-
-  @ValidateNested()
   @Type(() => TechnicalDetailsDto)
   public technicalDetails: TechnicalDetailsDto;
-
-  @IsString()
-  @IsNotEmpty()
-  public careGuidelines: string;
-
-  @IsString()
-  @IsNotEmpty()
-  public packagingNarrative: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -177,21 +151,8 @@ export class UpdateProductDto {
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => ArtisanNotesDto)
-  public artisanNotes?: ArtisanNotesDto;
-
-  @IsOptional()
-  @ValidateNested()
   @Type(() => TechnicalDetailsDto)
   public technicalDetails?: TechnicalDetailsDto;
-
-  @IsOptional()
-  @IsString()
-  public careGuidelines?: string;
-
-  @IsOptional()
-  @IsString()
-  public packagingNarrative?: string;
 
   @IsOptional()
   @IsArray()

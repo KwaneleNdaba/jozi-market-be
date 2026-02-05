@@ -8,6 +8,8 @@ import { ORDER_REPOSITORY_TOKEN } from "@/interfaces/order/IOrderRepository.inte
 import type { IOrderRepository } from "@/interfaces/order/IOrderRepository.interface";
 import { ORDER_SERVICE_TOKEN } from "@/interfaces/order/IOrderService.interface";
 import type { IOrderService } from "@/interfaces/order/IOrderService.interface";
+import { INVENTORY_SERVICE_TOKEN } from "@/interfaces/inventory/IInventoryService.interface";
+import type { IInventoryService } from "@/interfaces/inventory/IInventoryService.interface";
 import type { PaymentRequest, PaymentResponse, PaymentStatusResponse, PaymentContext, PayFastConfig } from "@/types/payfast.types";
 import { PaymentStatus } from "@/types/payfast.types";
 import type { ICreateOrder } from "@/types/order.types";
@@ -19,7 +21,8 @@ export class PayFastService implements IPayfastService {
   constructor(
     @Inject(CART_REPOSITORY_TOKEN) private readonly cartRepository: ICartRepository,
     @Inject(ORDER_REPOSITORY_TOKEN) private readonly orderRepository: IOrderRepository,
-    @Inject(ORDER_SERVICE_TOKEN) private readonly orderService: IOrderService
+    @Inject(ORDER_SERVICE_TOKEN) private readonly orderService: IOrderService,
+    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService
   ) {
     // Cleanup old contexts every hour
     setInterval(() => this.cleanupOldContexts(), 60 * 60 * 1000);
@@ -230,6 +233,9 @@ export class PayFastService implements IPayfastService {
         orderNumber: paymentReference,
         paymentStatus: "paid",
       } as any);
+
+      // Deduct stock after payment success (reserved → sold, create OUT movement)
+      await this.inventoryService.deductOnPaymentSuccess(order.id!);
 
       console.log(`✅ Auto order created successfully:`, {
         orderNumber: order.orderNumber,

@@ -3,6 +3,7 @@ import { FRONTEND_URL, LOG_FORMAT, NODE_ENV, PORT, SECRET_KEY } from "@config";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import type { Server as HTTPServer } from "http";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import hpp from "hpp";
@@ -14,6 +15,7 @@ import Container from "typedi";
 import { configurePassport } from "./config/passport.config";
 import { getRedisClient, initializeRedis } from "./config/redis.config";
 import dbConnection from "./database";
+import { socketService } from "./services/socket/socket.service";
 import { AUTH_REPOSITORY_TOKEN } from "./interfaces/auth/IAuthRepository .interface";
 import { AUTH_SERVICE_TOKEN } from "./interfaces/auth/IAuthService.interface";
 import { FILE_UPLOAD_SERVICE_TOKEN } from "./interfaces/file-upload/file-upload.service.interface";
@@ -45,6 +47,8 @@ import { ORDER_REPOSITORY_TOKEN } from "./interfaces/order/IOrderRepository.inte
 import { ORDER_SERVICE_TOKEN } from "./interfaces/order/IOrderService.interface";
 import { RETURN_REPOSITORY_TOKEN } from "./interfaces/return/IReturnRepository.interface";
 import { RETURN_SERVICE_TOKEN } from "./interfaces/return/IReturnService.interface";
+import { INVENTORY_REPOSITORY_TOKEN } from "@/interfaces/inventory/IInventoryRepository.interface";
+import { INVENTORY_SERVICE_TOKEN } from "@/interfaces/inventory/IInventoryService.interface";
 import { PAYFAST_SERVICE_TOKEN } from "./interfaces/payfast/IPayfastService.interface";
 import { apiGatewayMultipartMiddleware } from "./middlewares/apiGatewayMultipart";
 import { ErrorMiddleware } from "./middlewares/ErrorMiddleware";
@@ -63,6 +67,7 @@ import { SubscriptionTransactionRepository } from "./repositories/subscription-t
 import { CartRepository } from "./repositories/cart/cart.repository";
 import { OrderRepository } from "./repositories/order/order.repository";
 import { ReturnRepository } from "./repositories/return/return.repository";
+import { InventoryRepository } from "./repositories/inventory/inventory.repository";
 import { AuthService } from "./services/auth/auth.service";
 import { FileUploadService } from "./services/file-upload/file-upload.service";
 import { VendorService } from "./services/vendor-application/vendor.service";
@@ -79,6 +84,7 @@ import { SubscriptionTransactionService } from "./services/subscription-transact
 import { CartService } from "./services/cart/cart.service";
 import { OrderService } from "./services/order/order.service";
 import { ReturnService } from "./services/return/return.service";
+import { InventoryService } from "./services/inventory/inventory.service";
 import { PayFastService } from "./services/payfast/payfast.service";
 import type { Routes } from "./types/routes.interface";
 import { logger, stream } from "./utils/logger";
@@ -88,6 +94,7 @@ export class App {
   public env: string;
   public port: string | number;
   private redisClient: any;
+  private server: HTTPServer | null = null;
 
   constructor(routes: Routes[]) {
     this.app = express();
@@ -106,7 +113,13 @@ export class App {
   }
 
   public listen() {
-    this.app.listen(this.port, () => {
+    const http = require("http");
+    this.server = http.createServer(this.app);
+    
+    // Initialize socket.io
+    socketService.initialize(this.server);
+    
+    this.server.listen(this.port, () => {
       logger.info(`=================================`);
       logger.info(`======= ENV: ${this.env} =======`);
       logger.info(`🚀 JOZI-MARKET listening on port ${this.port}`);
@@ -116,6 +129,10 @@ export class App {
 
   public getServer() {
     return this.app;
+  }
+
+  public getHTTPServer() {
+    return this.server;
   }
 
   public async connectToDatabase() {
@@ -165,6 +182,7 @@ export class App {
     Container.set(CART_REPOSITORY_TOKEN, new CartRepository());
     Container.set(ORDER_REPOSITORY_TOKEN, new OrderRepository());
     Container.set(RETURN_REPOSITORY_TOKEN, new ReturnRepository());
+    Container.set(INVENTORY_REPOSITORY_TOKEN, new InventoryRepository());
 
     // Register Services (depend on repositories via tokens)
     Container.set(AUTH_SERVICE_TOKEN, new AuthService(Container.get(AUTH_REPOSITORY_TOKEN)));
@@ -184,27 +202,35 @@ export class App {
       Container.get(SUBSCRIPTION_PLAN_REPOSITORY_TOKEN),
       Container.get(USER_SUBSCRIPTION_REPOSITORY_TOKEN)
     ));
+    Container.set(INVENTORY_SERVICE_TOKEN, new InventoryService(
+      Container.get(INVENTORY_REPOSITORY_TOKEN),
+      Container.get(ORDER_REPOSITORY_TOKEN)
+    ));
     Container.set(RETURN_SERVICE_TOKEN, new ReturnService(
       Container.get(RETURN_REPOSITORY_TOKEN),
       Container.get(ORDER_REPOSITORY_TOKEN),
+      Container.get(INVENTORY_SERVICE_TOKEN),
       Container.get(PRODUCT_SERVICE_TOKEN)
     ));
     Container.set(CART_SERVICE_TOKEN, new CartService(
       Container.get(CART_REPOSITORY_TOKEN),
       Container.get(PRODUCT_REPOSITORY_TOKEN),
-      Container.get(PRODUCT_SERVICE_TOKEN)
+      Container.get(PRODUCT_SERVICE_TOKEN),
+      Container.get(INVENTORY_SERVICE_TOKEN)
     ));
     Container.set(ORDER_SERVICE_TOKEN, new OrderService(
       Container.get(ORDER_REPOSITORY_TOKEN),
       Container.get(RETURN_REPOSITORY_TOKEN),
       Container.get(CART_REPOSITORY_TOKEN),
       Container.get(PRODUCT_REPOSITORY_TOKEN),
-      Container.get(PRODUCT_SERVICE_TOKEN)
+      Container.get(PRODUCT_SERVICE_TOKEN),
+      Container.get(INVENTORY_SERVICE_TOKEN)
     ));
     Container.set(PAYFAST_SERVICE_TOKEN, new PayFastService(
       Container.get(CART_REPOSITORY_TOKEN),
       Container.get(ORDER_REPOSITORY_TOKEN),
-      Container.get(ORDER_SERVICE_TOKEN)
+      Container.get(ORDER_SERVICE_TOKEN),
+      Container.get(INVENTORY_SERVICE_TOKEN)
     ));
   }
 

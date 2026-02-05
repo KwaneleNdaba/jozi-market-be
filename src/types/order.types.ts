@@ -57,6 +57,7 @@ export interface IOrderItem {
   // Return flags
   isReturnRequested?: boolean;
   isReturnApproved?: boolean;
+  isReturnReviewed?: boolean;
   // Rejection metadata fields (for vendor rejection)
   rejectionReason?: string | null;
   rejectedBy?: string | null;
@@ -83,6 +84,7 @@ export interface IOrder {
   // Return flags
   isReturnRequested?: boolean;
   isReturnApproved?: boolean;
+  isReturnReviewed?: boolean;
   // Cancellation metadata fields
   cancellationRequestedAt?: Date | null;
   cancellationReviewedBy?: string | null;
@@ -152,6 +154,13 @@ export interface IOrderItemWithDetails extends IOrderItem {
     id: string;
     orderNumber: string;
     createdAt: Date;
+    status?: OrderStatus | string;
+    paymentStatus?: PaymentStatus | string;
+    totalAmount?: number;
+    shippingAddress?: IShippingAddress;
+    email?: string;
+    phone?: string;
+    notes?: string;
     customer?: IOrderUser;
   };
   product?: {

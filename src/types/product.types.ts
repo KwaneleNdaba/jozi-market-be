@@ -3,12 +3,6 @@ export enum ProductStatus {
   INACTIVE = "Inactive",
 }
 
-export interface IArtisanNotes {
-  hook: string;
-  story: string;
-  notes: string[];
-}
-
 export interface IProductImage {
   index: number;
   file: string; // URL or file path
@@ -18,15 +12,22 @@ export interface IProductVideo {
   file: string; // URL or file path (optional)
 }
 
+export interface IInventoryData {
+  quantityAvailable: number;
+  quantityReserved: number;
+  reorderLevel: number;
+}
+
 export interface IProductVariant {
   id?: string;
   productId?: string;
   name: string;
   sku: string;
-  price: number;
+  price?: number; // Optional: Uses product regularPrice if not set
   discountPrice?: number;
   stock: number;
   status: ProductStatus | string;
+  inventory?: IInventoryData; // Real-time inventory data
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -52,13 +53,11 @@ export interface IProduct {
   description: string;
   sku: string;
   status: ProductStatus | string;
-  artisanNotes: IArtisanNotes;
   technicalDetails: ITechnicalDetails;
-  careGuidelines: string;
-  packagingNarrative: string;
   images: IProductImage[];
   video?: IProductVideo;
   variants?: IProductVariant[];
+  inventory?: IInventoryData; // Inventory data for products without variants
   vendorName?: string; // Shop name from approved vendor application
   vendorDescription?: string; // Description from vendor application
   vendorLogo?: string; // Logo URL from vendor application
@@ -72,10 +71,7 @@ export interface ICreateProduct {
   description: string;
   sku: string;
   status: ProductStatus | string;
-  artisanNotes: IArtisanNotes;
   technicalDetails: ITechnicalDetails;
-  careGuidelines: string;
-  packagingNarrative: string;
   images: IProductImage[];
   video?: IProductVideo;
   variants?: Omit<IProductVariant, "id" | "productId" | "createdAt" | "updatedAt">[];
@@ -88,11 +84,25 @@ export interface IUpdateProduct {
   description?: string;
   sku?: string;
   status?: ProductStatus | string;
-  artisanNotes?: IArtisanNotes;
   technicalDetails?: ITechnicalDetails;
-  careGuidelines?: string;
-  packagingNarrative?: string;
   images?: IProductImage[];
   video?: IProductVideo;
   variants?: Omit<IProductVariant, "id" | "productId" | "createdAt" | "updatedAt">[];
+}
+
+export interface IPaginationParams {
+  page?: number;
+  limit?: number;
+}
+
+export interface IPaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
 }

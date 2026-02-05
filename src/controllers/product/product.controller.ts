@@ -97,10 +97,14 @@ export class ProductController {
   ): Promise<void> => {
     try {
       const { categoryId } = req.params;
-      const products = await this.productService.getProductsByCategoryId(categoryId);
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      
+      const result = await this.productService.getProductsByCategoryId(categoryId, { page, limit });
 
-      const response: CustomResponse<IProduct[]> = {
-        data: products,
+      const response: CustomResponse<any> = {
+        data: result.data,
+        pagination: result.pagination,
         message: "Products retrieved successfully",
         error: false,
       };
@@ -128,10 +132,14 @@ export class ProductController {
       }
 
       const { status } = req.query;
-      const products = await this.productService.getProductsByUserId(requestedUserId, status as string);
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      
+      const result = await this.productService.getProductsByUserId(requestedUserId, status as string, { page, limit });
 
-      const response: CustomResponse<IProduct[]> = {
-        data: products,
+      const response: CustomResponse<any> = {
+        data: result.data,
+        pagination: result.pagination,
         message: "Products retrieved successfully",
         error: false,
       };
@@ -148,10 +156,14 @@ export class ProductController {
   ): Promise<void> => {
     try {
       const { subcategoryId } = req.params;
-      const products = await this.productService.getProductsBySubcategoryId(subcategoryId);
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      
+      const result = await this.productService.getProductsBySubcategoryId(subcategoryId, { page, limit });
 
-      const response: CustomResponse<IProduct[]> = {
-        data: products,
+      const response: CustomResponse<any> = {
+        data: result.data,
+        pagination: result.pagination,
         message: "Products retrieved successfully",
         error: false,
       };
@@ -168,10 +180,14 @@ export class ProductController {
   ): Promise<void> => {
     try {
       const { status } = req.query;
-      const products = await this.productService.getAllProducts(status as string);
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      
+      const result = await this.productService.getAllProducts(status as string, { page, limit });
 
-      const response: CustomResponse<IProduct[]> = {
-        data: products,
+      const response: CustomResponse<any> = {
+        data: result.data,
+        pagination: result.pagination,
         message: "Products retrieved successfully",
         error: false,
       };

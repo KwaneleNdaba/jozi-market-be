@@ -1,5 +1,5 @@
 import { Token } from "typedi";
-import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IReviewCancellation, IVendorOrdersResponse, IOrderItem, IOrderItemsGroupedResponse, OrderItemStatus } from "@/types/order.types";
+import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IVendorOrdersResponse, IOrderItem, IOrderItemsGroupedResponse, OrderItemStatus } from "@/types/order.types";
 
 export interface IOrderService {
   createOrder(userId: string, orderData: ICreateOrder): Promise<IOrder>;
@@ -9,7 +9,6 @@ export interface IOrderService {
   getAllOrders(status?: string): Promise<IOrder[]>;
   updateOrder(updateData: IUpdateOrder): Promise<IOrder>;
   requestCancellation(requestData: IRequestCancellation): Promise<IOrder>;
-  reviewCancellation(reviewData: IReviewCancellation): Promise<IOrder>;
   getOrdersByVendorId(vendorId: string): Promise<IVendorOrdersResponse>;
   getOrderItemsGroupedByDateAndVendor(): Promise<IOrderItemsGroupedResponse>;
   updateOrderItemStatus(orderItemId: string, status: OrderItemStatus | string, userId: string, userRole: string, rejectionReason?: string): Promise<IOrderItem>;

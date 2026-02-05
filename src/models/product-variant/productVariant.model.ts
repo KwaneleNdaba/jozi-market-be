@@ -5,10 +5,13 @@ class ProductVariant extends Model {
   public productId!: string;
   public name!: string;
   public sku!: string;
-  public price!: number;
+  public price?: number; // Optional: Uses product regularPrice if not set
   public discountPrice?: number;
+  public costPrice?: number;
   public stock!: number;
   public status!: string;
+  public barcode?: string | null;
+  public weight?: number | null;
   public createdAt?: Date;
   public updatedAt?: Date;
 
@@ -42,16 +45,32 @@ class ProductVariant extends Model {
         },
         price: {
           type: DataTypes.DECIMAL(10, 2),
-          allowNull: false,
+          allowNull: true,
+          comment: "Optional: Uses product regularPrice if not set",
         },
         discountPrice: {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: true,
         },
+        costPrice: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true,
+          defaultValue: 0,
+        },
         stock: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
+          comment: "Denormalized from Inventory.quantityAvailable for backward compat",
+        },
+        barcode: {
+          type: DataTypes.STRING(100),
+          allowNull: true,
+        },
+        weight: {
+          type: DataTypes.DECIMAL(10, 3),
+          allowNull: true,
+          comment: "Weight in kg",
         },
         status: {
           type: DataTypes.ENUM("Active", "Inactive"),

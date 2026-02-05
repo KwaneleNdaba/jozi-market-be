@@ -3,7 +3,7 @@ import { HttpException } from "@/exceptions/HttpException";
 import { type IProductRepository, PRODUCT_REPOSITORY_TOKEN } from "@/interfaces/product/IProductRepository.interface";
 import { type IProductService, PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import { PRODUCT_ATTRIBUTE_VALUE_REPOSITORY_TOKEN } from "@/interfaces/product-attribute-value/IProductAttributeValueRepository.interface";
-import type { IProduct, ICreateProduct, IUpdateProduct, ITechnicalDetails, IProductImage, IProductVideo } from "@/types/product.types";
+import type { IProduct, ICreateProduct, IUpdateProduct, ITechnicalDetails, IProductImage, IProductVideo, IPaginatedResponse, IPaginationParams } from "@/types/product.types";
 import { getDownloadSignedUrl } from "@/utils/s3";
 import { logger } from "@/utils/logger";
 
@@ -155,13 +155,58 @@ export class ProductService implements IProductService {
       }
     }
 
+    // Process variants with inventory data
+    const variants = (product.variants || []).map((variant: any) => {
+      const variantData: any = {
+        id: variant.id,
+        productId: variant.productId,
+        name: variant.name,
+        sku: variant.sku,
+        // Use variant price if set, otherwise use product regularPrice
+        price: variant.price !== null && variant.price !== undefined 
+          ? parseFloat(variant.price) 
+          : parseFloat(product.regularPrice),
+        discountPrice: variant.discountPrice ? parseFloat(variant.discountPrice) : undefined,
+        stock: variant.stock || 0,
+        status: variant.status,
+        createdAt: variant.createdAt,
+        updatedAt: variant.updatedAt,
+      };
+
+      // Add actual inventory data if available
+      if (variant.inventory) {
+        variantData.inventory = {
+          quantityAvailable: variant.inventory.quantityAvailable,
+          quantityReserved: variant.inventory.quantityReserved,
+          reorderLevel: variant.inventory.reorderLevel,
+        };
+        // Update stock with actual available quantity
+        variantData.stock = variant.inventory.quantityAvailable;
+      }
+
+      return variantData;
+    });
+
+    // Get product inventory data for products without variants
+    let productStock = product.initialStock !== null && product.initialStock !== undefined ? product.initialStock : undefined;
+    let productInventory: any = undefined;
+    
+    if (product.inventory) {
+      productStock = product.inventory.quantityAvailable;
+      productInventory = {
+        quantityAvailable: product.inventory.quantityAvailable,
+        quantityReserved: product.inventory.quantityReserved,
+        reorderLevel: product.inventory.reorderLevel,
+      };
+    }
+
     // Reconstruct technicalDetails with attributes
     const technicalDetails: ITechnicalDetails = {
       categoryId: product.categoryId,
       subcategoryId: product.subcategoryId || undefined,
       regularPrice: parseFloat(product.regularPrice),
       discountPrice: product.discountPrice ? parseFloat(product.discountPrice) : undefined,
-      initialStock: product.initialStock !== null && product.initialStock !== undefined ? product.initialStock : undefined,
+      initialStock: productStock,
       attributes: attributeValues.map((av: any) => ({
         attributeId: av.attributeId,
         value: av.value,
@@ -176,13 +221,11 @@ export class ProductService implements IProductService {
       description: product.description,
       sku: product.sku,
       status: product.status,
-      artisanNotes: product.artisanNotes,
       technicalDetails,
-      careGuidelines: product.careGuidelines,
-      packagingNarrative: product.packagingNarrative,
       images: product.images || [],
       video: product.video || undefined,
-      variants: product.variants || [],
+      variants,
+      inventory: productInventory, // Include inventory data for products without variants
       vendorName,
       vendorDescription,
       vendorLogo,
@@ -192,6 +235,22 @@ export class ProductService implements IProductService {
 
     // Enrich with signed URLs for images, video, and vendor logo
     return await this.enrichWithSignedUrls(enrichedProduct);
+  }
+
+  private createPaginationResponse<T>(data: T[], total: number, page: number, limit: number): IPaginatedResponse<T> {
+    const totalPages = Math.ceil(total / limit);
+    
+    return {
+      data,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: total,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   public async createProduct(productData: ICreateProduct): Promise<IProduct> {
@@ -260,37 +319,57 @@ export class ProductService implements IProductService {
     }
   }
 
-  public async getProductsByCategoryId(categoryId: string): Promise<IProduct[]> {
+  public async getProductsByCategoryId(categoryId: string, pagination?: IPaginationParams): Promise<IPaginatedResponse<IProduct>> {
     try {
-      const products = await this.productRepository.findByCategoryId(categoryId);
-      return Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      const page = pagination?.page || 1;
+      const limit = pagination?.limit || 10;
+      
+      const { products, total } = await this.productRepository.findByCategoryId(categoryId, { page, limit });
+      const enrichedProducts = await Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      
+      return this.createPaginationResponse(enrichedProducts, total, page, limit);
     } catch (error: any) {
       throw new HttpException(500, error.message);
     }
   }
 
-  public async getProductsByUserId(userId: string, status?: string): Promise<IProduct[]> {
+  public async getProductsByUserId(userId: string, status?: string, pagination?: IPaginationParams): Promise<IPaginatedResponse<IProduct>> {
     try {
-      const products = await this.productRepository.findByUserId(userId, status);
-      return Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      const page = pagination?.page || 1;
+      const limit = pagination?.limit || 10;
+      
+      const { products, total } = await this.productRepository.findByUserId(userId, status, { page, limit });
+      const enrichedProducts = await Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      
+      return this.createPaginationResponse(enrichedProducts, total, page, limit);
     } catch (error: any) {
       throw new HttpException(500, error.message);
     }
   }
 
-  public async getProductsBySubcategoryId(subcategoryId: string): Promise<IProduct[]> {
+  public async getProductsBySubcategoryId(subcategoryId: string, pagination?: IPaginationParams): Promise<IPaginatedResponse<IProduct>> {
     try {
-      const products = await this.productRepository.findBySubcategoryId(subcategoryId);
-      return Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      const page = pagination?.page || 1;
+      const limit = pagination?.limit || 10;
+      
+      const { products, total } = await this.productRepository.findBySubcategoryId(subcategoryId, { page, limit });
+      const enrichedProducts = await Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      
+      return this.createPaginationResponse(enrichedProducts, total, page, limit);
     } catch (error: any) {
       throw new HttpException(500, error.message);
     }
   }
 
-  public async getAllProducts(status?: string): Promise<IProduct[]> {
+  public async getAllProducts(status?: string, pagination?: IPaginationParams): Promise<IPaginatedResponse<IProduct>> {
     try {
-      const products = await this.productRepository.findAll(status);
-      return Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      const page = pagination?.page || 1;
+      const limit = pagination?.limit || 10;
+      
+      const { products, total } = await this.productRepository.findAll(status, { page, limit });
+      const enrichedProducts = await Promise.all(products.map((product) => this.enrichProductWithAttributes(product)));
+      
+      return this.createPaginationResponse(enrichedProducts, total, page, limit);
     } catch (error: any) {
       throw new HttpException(500, error.message);
     }

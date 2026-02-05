@@ -6,11 +6,13 @@ import { RETURN_REPOSITORY_TOKEN } from "@/interfaces/return/IReturnRepository.i
 import type { IReturnRepository } from "@/interfaces/return/IReturnRepository.interface";
 import { CART_REPOSITORY_TOKEN } from "@/interfaces/cart/ICartRepository.interface";
 import type { ICartRepository } from "@/interfaces/cart/ICartRepository.interface";
+import { INVENTORY_SERVICE_TOKEN } from "@/interfaces/inventory/IInventoryService.interface";
+import type { IInventoryService } from "@/interfaces/inventory/IInventoryService.interface";
 import { PRODUCT_REPOSITORY_TOKEN } from "@/interfaces/product/IProductRepository.interface";
 import type { IProductRepository } from "@/interfaces/product/IProductRepository.interface";
 import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import type { IProductService } from "@/interfaces/product/IProductService.interface";
-import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IReviewCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IOrderItem, IOrderItemsGroupedResponse, IOrderItemsByVendorAndDate, IOrderItemWithDetails } from "@/types/order.types";
+import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IOrderItem, IOrderItemsGroupedResponse, IOrderItemsByVendorAndDate, IOrderItemWithDetails } from "@/types/order.types";
 import { OrderStatus, OrderItemStatus, PaymentStatus } from "@/types/order.types";
 import { ReturnStatus } from "@/types/return.types";
 import Order from "@/models/order/order.model";
@@ -23,7 +25,8 @@ export class OrderService implements IOrderService {
     @Inject(RETURN_REPOSITORY_TOKEN) private readonly returnRepository: IReturnRepository,
     @Inject(CART_REPOSITORY_TOKEN) private readonly cartRepository: ICartRepository,
     @Inject(PRODUCT_REPOSITORY_TOKEN) private readonly productRepository: IProductRepository,
-    @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService
+    @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService,
+    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService
   ) {}
 
   /**
@@ -161,13 +164,16 @@ export class OrderService implements IOrderService {
           // Use variant price (discount price if available, otherwise regular price)
           const variantPrice = variant.discountPrice || variant.price;
           unitPrice = typeof variantPrice === 'string' ? parseFloat(variantPrice) : variantPrice;
-          availableStock = variant.stock;
+          availableStock = await this.inventoryService.getAvailableQuantity({
+            productVariantId: cartItem.productVariantId,
+          });
         } else {
-          // Use product price (discount price if available, otherwise regular price)
-          // Product from repository has flat structure with regularPrice, discountPrice, initialStock
+          // Use product price; stock from inventory for products without variants
           const productPrice = (product as any).discountPrice || (product as any).regularPrice;
           unitPrice = typeof productPrice === 'string' ? parseFloat(productPrice) : productPrice;
-          availableStock = (product as any).initialStock || 0;
+          availableStock = await this.inventoryService.getAvailableQuantity({
+            productId: cartItem.productId,
+          });
         }
 
         // Check stock availability
@@ -463,23 +469,19 @@ export class OrderService implements IOrderService {
         throw new HttpException(404, "Order not found");
       }
 
-      // Only pending, confirmed, or processing orders can request cancellation
+      // Only pending, confirmed, or processing orders can be cancelled
       if (
         order.status !== OrderStatus.PENDING &&
         order.status !== OrderStatus.CONFIRMED &&
         order.status !== OrderStatus.PROCESSING
       ) {
-        throw new HttpException(400, "Only pending, confirmed, or processing orders can request cancellation");
+        throw new HttpException(400, "Only pending, confirmed, or processing orders can be cancelled");
       }
 
-      // Check if cancellation already requested
-      if (order.cancellationRequestedAt) {
-        throw new HttpException(400, "Cancellation request already exists for this order");
-      }
-
+      // Directly cancel the order - no review needed
       const updatedOrder = await this.orderRepository.update({
         id: requestData.orderId,
-        cancellationRequestedAt: new Date(),
+        status: OrderStatus.CANCELLED,
         notes: requestData.reason ? `${order.notes || ''}\nCancellation reason: ${requestData.reason}`.trim() : order.notes,
       } as any);
 
@@ -492,43 +494,6 @@ export class OrderService implements IOrderService {
     }
   }
 
-  public async reviewCancellation(reviewData: IReviewCancellation): Promise<IOrder> {
-    try {
-      const order = await this.orderRepository.findById(reviewData.orderId);
-      if (!order) {
-        throw new HttpException(404, "Order not found");
-      }
-
-      if (!order.cancellationRequestedAt) {
-        throw new HttpException(400, "No pending cancellation request found for this order");
-      }
-
-      const updateData: any = {
-        id: reviewData.orderId,
-        cancellationReviewedBy: reviewData.reviewedBy,
-        cancellationReviewedAt: new Date(),
-        cancellationRejectionReason: reviewData.rejectionReason || null,
-      };
-
-      // Update order status based on review
-      if (reviewData.status === OrderStatus.CANCELLED) {
-        updateData.status = OrderStatus.CANCELLED;
-      } else {
-        // Rejected - revert to previous status (could be pending, confirmed, or processing)
-        updateData.status = OrderStatus.PROCESSING;
-        updateData.cancellationRejectionReason = reviewData.rejectionReason || null;
-      }
-
-      const updatedOrder = await this.orderRepository.update(updateData);
-
-      return await this.getOrderById(updatedOrder.id!);
-    } catch (error: any) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(500, error.message);
-    }
-  }
 
   public async getOrdersByVendorId(vendorId: string): Promise<IVendorOrdersResponse> {
     try {

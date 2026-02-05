@@ -4,6 +4,8 @@ import { type IReturnRepository, RETURN_REPOSITORY_TOKEN } from "@/interfaces/re
 import { type IReturnService, RETURN_SERVICE_TOKEN } from "@/interfaces/return/IReturnService.interface";
 import { ORDER_REPOSITORY_TOKEN } from "@/interfaces/order/IOrderRepository.interface";
 import type { IOrderRepository } from "@/interfaces/order/IOrderRepository.interface";
+import { INVENTORY_SERVICE_TOKEN } from "@/interfaces/inventory/IInventoryService.interface";
+import type { IInventoryService } from "@/interfaces/inventory/IInventoryService.interface";
 import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import type { IProductService } from "@/interfaces/product/IProductService.interface";
 import { OrderStatus, PaymentStatus } from "@/types/order.types";
@@ -25,6 +27,7 @@ export class ReturnService implements IReturnService {
   constructor(
     @Inject(RETURN_REPOSITORY_TOKEN) private readonly returnRepository: IReturnRepository,
     @Inject(ORDER_REPOSITORY_TOKEN) private readonly orderRepository: IOrderRepository,
+    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService,
     @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService
   ) {}
 
@@ -291,6 +294,7 @@ export class ReturnService implements IReturnService {
             {
               isReturnRequested: true,
               isReturnApproved: true,
+              isReturnReviewed: true,
             },
             {
               where: { id: returnRecord.orderId },
@@ -303,6 +307,7 @@ export class ReturnService implements IReturnService {
               {
                 isReturnRequested: true,
                 isReturnApproved: true,
+                isReturnReviewed: true,
               },
               {
                 where: { id: orderItemIds },
@@ -320,16 +325,34 @@ export class ReturnService implements IReturnService {
           id: returnRecord.orderId,
           status: OrderStatus.DELIVERED,
         } as any);
-        // Clear return approval flag on order (request flag remains for history)
+        // Mark return as reviewed (rejected) and clear approval flag on order
+        const returnWithItemsForRejection = await this.returnRepository.getReturnWithItems(reviewData.returnId);
         await Order.update(
           {
             isReturnApproved: false,
+            isReturnReviewed: true,
           },
           {
             where: { id: returnRecord.orderId },
             transaction,
           }
         );
+        // Mark return items as reviewed (rejected)
+        if (returnWithItemsForRejection && returnWithItemsForRejection.items) {
+          const orderItemIds = returnWithItemsForRejection.items.map((item) => item.orderItemId);
+          if (orderItemIds.length > 0) {
+            await OrderItem.update(
+              {
+                isReturnApproved: false,
+                isReturnReviewed: true,
+              },
+              {
+                where: { id: orderItemIds },
+                transaction,
+              }
+            );
+          }
+        }
         // Note: OrderItem status remains "delivered" - return status is tracked in ReturnItem
       } else {
         throw new HttpException(400, "Invalid review status. Must be approved or rejected");
@@ -387,6 +410,7 @@ export class ReturnService implements IReturnService {
             {
               isReturnRequested: true,
               isReturnApproved: true,
+              isReturnReviewed: true,
             },
             {
               where: { id: updatedItem.orderItemId },
@@ -396,6 +420,7 @@ export class ReturnService implements IReturnService {
           await OrderItem.update(
             {
               isReturnApproved: false,
+              isReturnReviewed: true,
             },
             {
               where: { id: updatedItem.orderItemId },
@@ -475,22 +500,38 @@ export class ReturnService implements IReturnService {
       } else if (newStatus === ReturnStatus.REFUNDED) {
         updateData.refundStatus = RefundStatus.COMPLETED;
 
-        // Update order payment status if all items refunded
         const returnWithItems = await this.returnRepository.getReturnWithItems(returnId);
-        if (returnWithItems) {
+        if (returnWithItems && returnWithItems.items) {
+          for (const returnItem of returnWithItems.items) {
+            const orderItem = await this.orderRepository.findOrderItemById(returnItem.orderItemId);
+            if (!orderItem) continue;
+            if (orderItem.productVariantId) {
+              await this.inventoryService.refund({
+                productVariantId: orderItem.productVariantId,
+                quantity: returnItem.quantity,
+                orderItemId: returnItem.orderItemId,
+                returnId: returnId,
+                reason: "Refund",
+              });
+            } else if (orderItem.productId) {
+              await this.inventoryService.refund({
+                productId: orderItem.productId,
+                quantity: returnItem.quantity,
+                orderItemId: returnItem.orderItemId,
+                returnId: returnId,
+                reason: "Refund",
+              });
+            }
+          }
           const order = await this.orderRepository.getOrderWithItems(returnWithItems.orderId);
           if (order && order.paymentStatus === PaymentStatus.PAID) {
-            // Check if all items are returned by checking ReturnItem records
-            const allItemsReturned = returnWithItems.items 
-              ? returnWithItems.items.every(
-                  (returnItem) => returnItem.status === ReturnStatus.REFUNDED
-                )
-              : false;
+            const allItemsReturned = returnWithItems.items.every(
+              (returnItem) => returnItem.status === ReturnStatus.REFUNDED
+            );
             if (allItemsReturned) {
               await this.orderRepository.update({
                 id: returnWithItems.orderId,
                 paymentStatus: PaymentStatus.REFUNDED,
-                // Note: Order status remains "delivered" - return/refund status is tracked in Return model
               } as any);
             }
           }

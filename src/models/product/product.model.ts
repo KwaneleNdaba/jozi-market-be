@@ -7,14 +7,11 @@ class Product extends Model {
   public description!: string;
   public sku!: string;
   public status!: string;
-  public artisanNotes!: any; // JSON field
   public categoryId!: string;
   public subcategoryId?: string;
   public regularPrice!: number;
   public discountPrice?: number;
   public initialStock?: number; // Stock for products without variants
-  public careGuidelines!: string;
-  public packagingNarrative!: string;
   public images!: any; // JSON field
   public video?: any; // JSON field (optional)
   public createdAt?: Date;
@@ -46,10 +43,6 @@ class Product extends Model {
           type: DataTypes.ENUM("Active", "Inactive"),
           allowNull: false,
           defaultValue: "Active",
-        },
-        artisanNotes: {
-          type: DataTypes.JSON,
-          allowNull: false,
         },
         userId: {
           type: DataTypes.UUID,
@@ -94,14 +87,6 @@ class Product extends Model {
           allowNull: true,
           defaultValue: 0,
           comment: "Initial stock quantity for products without variants",
-        },
-        careGuidelines: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-        },
-        packagingNarrative: {
-          type: DataTypes.TEXT,
-          allowNull: false,
         },
         images: {
           type: DataTypes.JSON,

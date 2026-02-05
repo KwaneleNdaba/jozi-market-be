@@ -18,6 +18,7 @@ class OrderItem extends Model {
   // Return flags
   public isReturnRequested?: boolean;
   public isReturnApproved?: boolean;
+  public isReturnReviewed?: boolean;
 
   public createdAt?: Date;
   public updatedAt?: Date;
@@ -104,6 +105,11 @@ class OrderItem extends Model {
           defaultValue: false,
         },
         isReturnApproved: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        isReturnReviewed: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
