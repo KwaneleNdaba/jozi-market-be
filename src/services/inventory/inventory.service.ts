@@ -37,7 +37,8 @@ export class InventoryService implements IInventoryService {
     
     // Emit WebSocket event for variant stock update
     socketService.emitVariantStockUpdate(productVariantId, {
-      stock: quantityAvailable,
+      quantityAvailable: quantityAvailable,
+      stock: quantityAvailable, // Keep for backward compatibility
       timestamp: new Date().toISOString(),
     });
   }
@@ -50,7 +51,8 @@ export class InventoryService implements IInventoryService {
     
     // Emit WebSocket event for product stock update
     socketService.emitProductStockUpdate(productId, {
-      stock: quantityAvailable,
+      quantityAvailable: quantityAvailable,
+      stock: quantityAvailable, // Keep for backward compatibility
       timestamp: new Date().toISOString(),
     });
   }

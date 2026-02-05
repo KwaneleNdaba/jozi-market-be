@@ -17,6 +17,7 @@ import { OrderRoute } from "./routes/order/order.route";
 import { ReturnRoute } from "./routes/return/return.route";
 import { InventoryRoute } from "./routes/inventory/inventory.route";
 import { PayFastRoute } from "./routes/payfast/payfast.route";
+import { TestRoute } from "./routes/test.route";
 import { ValidateEnv } from "./utils/validateEnv";
 
 ValidateEnv();
@@ -40,6 +41,7 @@ const app = new App([
   new ReturnRoute(),
   new InventoryRoute(),
   new PayFastRoute(),
+  new TestRoute(), // WebSocket testing endpoint
 ]);
 
 app.listen();
