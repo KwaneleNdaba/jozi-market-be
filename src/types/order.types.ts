@@ -62,9 +62,33 @@ export interface IOrderItem {
   rejectionReason?: string | null;
   rejectedBy?: string | null;
   rejectedAt?: Date | null;
-  product?: any; // Product details (enriched)
+  product?: IOrderProduct; // Product details (enriched)
+  variant?: IOrderProductVariant; // Variant details if applicable
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export interface IOrderProduct {
+  id: string;
+  title: string;
+  description?: string;
+  sku: string;
+  images?: Array<{
+    index: number;
+    file: string;
+  }>;
+  regularPrice?: number;
+  discountPrice?: number;
+  status?: string;
+}
+
+export interface IOrderProductVariant {
+  id: string;
+  name: string;
+  sku: string;
+  price?: number;
+  discountPrice?: number;
+  status: string;
 }
 
 export interface IOrder {
@@ -163,15 +187,8 @@ export interface IOrderItemWithDetails extends IOrderItem {
     notes?: string;
     customer?: IOrderUser;
   };
-  product?: {
-    id: string;
-    title: string;
-    sku: string;
-    images?: Array<{
-      index: number;
-      file: string;
-    }>;
-  };
+  product?: IOrderProduct;
+  variant?: IOrderProductVariant;
   vendor?: IVendorDetails;
 }
 

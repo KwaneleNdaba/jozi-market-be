@@ -60,13 +60,31 @@ export class InventoryService implements IInventoryService {
       const inv = await this.inventoryRepository.findOrCreateForVariant(data.productVariantId);
       const available = inv.quantityAvailable - inv.quantityReserved;
       if (available < data.quantity) throw new HttpException(400, "Insufficient stock to reserve");
-      return this.inventoryRepository.reserve(data.productVariantId, data.quantity);
+      const result = await this.inventoryRepository.reserve(data.productVariantId, data.quantity);
+      
+      // Emit WebSocket event for variant stock update
+      socketService.emitVariantStockUpdate(data.productVariantId, {
+        quantityAvailable: result.quantityAvailable,
+        quantityReserved: result.quantityReserved,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return result;
     }
     if (data.productId) {
       const inv = await this.inventoryRepository.findOrCreateForProduct(data.productId);
       const available = inv.quantityAvailable - inv.quantityReserved;
       if (available < data.quantity) throw new HttpException(400, "Insufficient stock to reserve");
-      return this.inventoryRepository.reserveByProduct(data.productId, data.quantity);
+      const result = await this.inventoryRepository.reserveByProduct(data.productId, data.quantity);
+      
+      // Emit WebSocket event for product stock update
+      socketService.emitProductStockUpdate(data.productId, {
+        quantityAvailable: result.quantityAvailable,
+        quantityReserved: result.quantityReserved,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return result;
     }
     throw new HttpException(400, "Either productVariantId or productId required");
   }
@@ -75,12 +93,30 @@ export class InventoryService implements IInventoryService {
     if (data.productVariantId) {
       const inv = await this.inventoryRepository.findByVariantId(data.productVariantId);
       if (!inv) return null as any;
-      return this.inventoryRepository.release(data.productVariantId, data.quantity);
+      const result = await this.inventoryRepository.release(data.productVariantId, data.quantity);
+      
+      // Emit WebSocket event for variant stock update
+      socketService.emitVariantStockUpdate(data.productVariantId, {
+        quantityAvailable: result.quantityAvailable,
+        quantityReserved: result.quantityReserved,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return result;
     }
     if (data.productId) {
       const inv = await this.inventoryRepository.findByProductId(data.productId);
       if (!inv) return null as any;
-      return this.inventoryRepository.releaseByProduct(data.productId, data.quantity);
+      const result = await this.inventoryRepository.releaseByProduct(data.productId, data.quantity);
+      
+      // Emit WebSocket event for product stock update
+      socketService.emitProductStockUpdate(data.productId, {
+        quantityAvailable: result.quantityAvailable,
+        quantityReserved: result.quantityReserved,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return result;
     }
     return null as any;
   }

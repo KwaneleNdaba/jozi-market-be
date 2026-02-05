@@ -161,8 +161,16 @@ export class OrderService implements IOrderService {
             await transaction.rollback();
             throw new HttpException(400, `Product variant is not available`);
           }
-          // Use variant price (discount price if available, otherwise regular price)
-          const variantPrice = variant.discountPrice || variant.price;
+          // Use variant price if set, otherwise fall back to product price
+          let variantPrice;
+          if (variant.discountPrice !== null && variant.discountPrice !== undefined) {
+            variantPrice = variant.discountPrice;
+          } else if (variant.price !== null && variant.price !== undefined) {
+            variantPrice = variant.price;
+          } else {
+            // Variant has no price, use product price
+            variantPrice = (product as any).discountPrice || (product as any).regularPrice;
+          }
           unitPrice = typeof variantPrice === 'string' ? parseFloat(variantPrice) : variantPrice;
           availableStock = await this.inventoryService.getAvailableQuantity({
             productVariantId: cartItem.productVariantId,

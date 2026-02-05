@@ -15,6 +15,38 @@ import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder, IOrderItemWithDeta
 
 @Service({ id: ORDER_REPOSITORY_TOKEN })
 export class OrderRepository implements IOrderRepository {
+  // Helper method to get standard includes for orders with items and variants
+  private getOrderIncludes(vendorId?: string): any[] {
+    const includes: any[] = [
+      {
+        model: User,
+        as: "user",
+        required: false,
+        attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
+      },
+      {
+        model: OrderItem,
+        as: "items",
+        required: false,
+        include: [
+          {
+            model: Product,
+            as: "product",
+            required: false,
+            ...(vendorId ? { where: { userId: vendorId } } : {}),
+          },
+          {
+            model: ProductVariant,
+            as: "variant",
+            required: false,
+            attributes: ["id", "name", "sku", "price", "discountPrice", "status"],
+          },
+        ],
+      },
+    ];
+    return includes;
+  }
+
   public async create(orderData: ICreateOrder): Promise<IOrder> {
     try {
       // Generate unique order number
@@ -42,14 +74,7 @@ export class OrderRepository implements IOrderRepository {
   public async findById(id: string): Promise<IOrder | null> {
     try {
       const order = await Order.findByPk(id, {
-        include: [
-          {
-            model: User,
-            as: "user",
-            required: false,
-            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
-          },
-        ],
+        include: this.getOrderIncludes(),
         raw: false,
       });
       return order ? order.get({ plain: true }) : null;
@@ -62,14 +87,7 @@ export class OrderRepository implements IOrderRepository {
     try {
       const order = await Order.findOne({
         where: { orderNumber },
-        include: [
-          {
-            model: User,
-            as: "user",
-            required: false,
-            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
-          },
-        ],
+        include: this.getOrderIncludes(),
         raw: false,
       });
       return order ? order.get({ plain: true }) : null;
@@ -82,14 +100,7 @@ export class OrderRepository implements IOrderRepository {
     try {
       const orders = await Order.findAll({
         where: { userId },
-        include: [
-          {
-            model: User,
-            as: "user",
-            required: false,
-            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
-          },
-        ],
+        include: this.getOrderIncludes(),
         order: [["createdAt", "DESC"]],
         raw: false,
       });
@@ -108,14 +119,7 @@ export class OrderRepository implements IOrderRepository {
 
       const orders = await Order.findAll({
         where,
-        include: [
-          {
-            model: User,
-            as: "user",
-            required: false,
-            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
-          },
-        ],
+        include: this.getOrderIncludes(),
         order: [["createdAt", "DESC"]],
         raw: false,
       });
@@ -266,34 +270,7 @@ export class OrderRepository implements IOrderRepository {
             [Op.in]: orderIds,
           },
         },
-        include: [
-          {
-            model: User,
-            as: "user",
-            required: false,
-            attributes: ["id", "fullName", "email", "phone", "role", "profileUrl", "address"],
-          },
-          {
-            model: OrderItem,
-            as: "items",
-            required: false,
-            include: [
-              {
-                model: Product,
-                as: "product",
-                required: true, // Only include items with products
-                where: {
-                  userId: vendorId, // Filter to only products from this vendor
-                },
-              },
-              {
-                model: ProductVariant,
-                as: "variant",
-                required: false,
-              },
-            ],
-          },
-        ],
+        include: this.getOrderIncludes(vendorId),
         order: [["createdAt", "DESC"]],
         raw: false,
       });

@@ -12,9 +12,35 @@ export interface ICartItem {
   productId: string;
   productVariantId?: string | null;
   quantity: number;
-  product?: any; // Product details (enriched)
+  product?: ICartProduct; // Product details (enriched)
+  variant?: ICartProductVariant; // Variant details if applicable
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export interface ICartProduct {
+  id: string;
+  title: string;
+  description?: string;
+  sku: string;
+  images?: Array<{
+    index: number;
+    file: string;
+  }>;
+  regularPrice?: number;
+  discountPrice?: number;
+  status?: string;
+  variants?: ICartProductVariant[];
+}
+
+export interface ICartProductVariant {
+  id: string;
+  name: string;
+  sku: string;
+  price?: number;
+  discountPrice?: number;
+  stock: number;
+  status: string;
 }
 
 export interface ICart {
