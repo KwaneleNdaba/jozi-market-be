@@ -36,27 +36,6 @@ import { DB_HOST, DB_NAME, DB_PASSWORD, DB_USER } from "../config";
 import User from "../models/user/user.model";
 import { setupAssociations } from "./associations";
 
-// const dbConnection = new Sequelize({
-//   dialect: 'mysql',
-//   host: DB_HOST,
-//   port: 3306,
-//   database: DB_NAME,
-//   username: DB_USER,
-//   password: DB_PASSWORD,
-//   dialectOptions: {
-//     connectTimeout: 30000,
-//   },
-//   pool: {
-//     max: 5,
-//     min: 0,
-//     acquire: 30000,
-//     idle: 10000,
-//   },
-//   logging: false, // Disable SQL query logging to reduce overhead
-// });
-
-
-//for updating
 
 const dbConnection = new Sequelize({
   dialect: "mysql",
@@ -66,11 +45,7 @@ const dbConnection = new Sequelize({
   username: DB_USER,
   password: DB_PASSWORD,
   dialectOptions: {
-    encrypt: true,
-    trustServerCertificate: true,
-    options: {
-      requestTimeout: 30000,
-    },
+    connectTimeout: 30000,
   },
   pool: {
     max: 10,
@@ -78,6 +53,7 @@ const dbConnection = new Sequelize({
     acquire: 30000,
     idle: 10000,
   },
+  logging: false,
 });
 
 User.initialize(dbConnection);
