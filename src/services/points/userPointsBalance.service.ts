@@ -51,4 +51,13 @@ export class UserPointsBalanceService implements IUserPointsBalanceService {
       throw new HttpException(500, error.message || "Failed to deduct available points");
     }
   }
+
+  public async updateCurrentTier(userId: string, tierId: string): Promise<IUserPointsBalance> {
+    try {
+      return await this.userPointsBalanceRepository.upsert(userId, { currentTierId: tierId });
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(500, error.message || "Failed to update current tier");
+    }
+  }
 }

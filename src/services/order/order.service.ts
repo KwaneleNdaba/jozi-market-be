@@ -237,14 +237,22 @@ export class OrderService implements IOrderService {
           const rule = earningRules.find(r => r.enabled) || earningRules[0];
           const basePoints = Math.floor(totalAmount * ((rule).pointsAwarded || 1));
           if (basePoints > 0) {
-            // Apply tier multiplier if user has a current tier
+            // Resolve tier: use currentTierId if set, otherwise assign lowest active tier
             const currentBalance = await this.userPointsBalanceService.getBalance(userId);
+            let tierId = currentBalance?.currentTierId ?? null;
             let tierMultiplier = 1.0;
-            if (currentBalance?.currentTierId) {
-              const tier = await this.tierRepository.findById(currentBalance.currentTierId);
-              if (tier?.multiplier) {
-                tierMultiplier = Number(tier.multiplier);
+
+            if (!tierId) {
+              const activeTiers = await this.tierRepository.findActiveTiers();
+              if (activeTiers.length > 0) {
+                const lowestTier = activeTiers[0]; // findActiveTiers returns ordered by tierLevel ASC
+                tierId = lowestTier.id;
+                await this.userPointsBalanceService.updateCurrentTier(userId, tierId);
+                tierMultiplier = Number(lowestTier.multiplier);
               }
+            } else {
+              const tier = await this.tierRepository.findById(tierId);
+              if (tier?.multiplier) tierMultiplier = Number(tier.multiplier);
             }
 
             const pointsEarned = Math.floor(basePoints * tierMultiplier);
