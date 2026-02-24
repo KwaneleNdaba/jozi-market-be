@@ -133,6 +133,25 @@ export class InventoryService implements IInventoryService {
       const productId = item.productId;
 
       if (variantId) {
+        const variantExists = await ProductVariant.findByPk(variantId, { attributes: ["id"], raw: true });
+        if (!variantExists) {
+          // Variant was deleted after order was placed — fall through to product-level
+          if (productId) {
+            await this.inventoryRepository.deductByProduct(productId, qty);
+            await this.inventoryRepository.createMovement({
+              productId,
+              type: InventoryMovementType.OUT,
+              quantity: qty,
+              reason: "Sale",
+              referenceId: orderId,
+              referenceType: "order",
+            });
+            const updated = await this.inventoryRepository.findByProductId(productId);
+            if (updated) await this.syncProductStock(productId, updated.quantityAvailable);
+          }
+          continue;
+        }
+
         const inv = await this.inventoryRepository.findByVariantId(variantId);
         if (!inv) continue;
         await this.inventoryRepository.deduct(variantId, qty);
