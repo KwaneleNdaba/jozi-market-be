@@ -148,7 +148,6 @@ class VendorApplication extends Model {
         files: {
           type: DataTypes.JSON,
           allowNull: false,
-          defaultValue: {},
         },
         agreements: {
           type: DataTypes.JSON,

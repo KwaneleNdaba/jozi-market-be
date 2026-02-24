@@ -21,6 +21,17 @@ import ReturnItem from "@/models/return-item/returnItem.model";
 import Inventory from "@/models/inventory/inventory.model";
 import InventoryMovement from "@/models/inventory-movement/inventoryMovement.model";
 import InventoryRestock from "@/models/inventory-restock/inventoryRestock.model";
+import PointsConfig from "@/models/points-config/pointsConfig.model";
+import Tier from "@/models/tier/tier.model";
+import TierBenefit from "@/models/tier-benefit/tierBenefit.model";
+import Benefit from "@/models/benefit/benefit.model";
+import ReferralRewardConfig from "@/models/referral-reward-config/referralRewardConfig.model";
+import ReferralSlotReward from "@/models/referral-slot-reward/referralSlotReward.model";
+import EarningRule from "@/models/earning-rule/earningRule.model";
+import ExpiryRule from "@/models/expiry-rule/expiryRule.model";
+import AbuseFlag from "@/models/abuse-flag/abuseFlag.model";
+import PointsHistory from "@/models/points-history/pointsHistory.model";
+import UserPointsBalance from "@/models/user-points-balance/userPointsBalance.model";
 
 export function setupAssociations() {
   // User - RefreshToken
@@ -533,5 +544,123 @@ export function setupAssociations() {
     as: "reviewedReturnItems",
     onDelete: "SET NULL",
     onUpdate: "CASCADE",
+  });
+
+  // ========== POINTS SYSTEM ASSOCIATIONS ==========
+
+  // PointsConfig - User (creator) - Keep only this one
+  PointsConfig.belongsTo(User, {
+    foreignKey: "createdBy",
+    as: "creator",
+    onDelete: "SET NULL",
+  });
+  User.hasMany(PointsConfig, {
+    foreignKey: "createdBy",
+    as: "pointsConfigs",
+  });
+
+  // Removed PointsConfig associations - models are now independent
+
+  // TierBenefit - Tier
+  TierBenefit.belongsTo(Tier, {
+    foreignKey: "tierId",
+    as: "tier",
+    onDelete: "CASCADE",
+  });
+  Tier.hasMany(TierBenefit, {
+    foreignKey: "tierId",
+    as: "tierBenefits",
+  });
+
+  // TierBenefit - Benefit
+  TierBenefit.belongsTo(Benefit, {
+    foreignKey: "benefitId",
+    as: "benefit",
+    onDelete: "CASCADE",
+  });
+  Benefit.hasMany(TierBenefit, {
+    foreignKey: "benefitId",
+    as: "tierBenefits",
+  });
+
+  // ReferralSlotReward - ReferralRewardConfig
+  ReferralSlotReward.belongsTo(ReferralRewardConfig, {
+    foreignKey: "rewardConfigId",
+    as: "rewardConfig",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  ReferralRewardConfig.hasMany(ReferralSlotReward, {
+    foreignKey: "rewardConfigId",
+    as: "slotRewards",
+  });
+
+  // EarningRule - ExpiryRule
+  EarningRule.belongsTo(ExpiryRule, {
+    foreignKey: "expiryRuleId",
+    as: "expiryRule",
+    onDelete: "RESTRICT",
+    onUpdate: "CASCADE",
+  });
+  ExpiryRule.hasMany(EarningRule, {
+    foreignKey: "expiryRuleId",
+    as: "earningRules",
+    onDelete: "RESTRICT",
+    onUpdate: "CASCADE",
+  });
+
+  // AbuseFlag - User (flagged user)
+  AbuseFlag.belongsTo(User, {
+    foreignKey: "userId",
+    as: "user",
+    onDelete: "CASCADE",
+  });
+  User.hasMany(AbuseFlag, {
+    foreignKey: "userId",
+    as: "abuseFlags",
+  });
+
+  // AbuseFlag - User (reviewer)
+  AbuseFlag.belongsTo(User, {
+    foreignKey: "reviewedBy",
+    as: "reviewer",
+    onDelete: "SET NULL",
+  });
+  User.hasMany(AbuseFlag, {
+    foreignKey: "reviewedBy",
+    as: "reviewedAbuseFlags",
+  });
+
+  // PointsHistory - User
+  PointsHistory.belongsTo(User, {
+    foreignKey: "userId",
+    as: "user",
+    onDelete: "CASCADE",
+  });
+  User.hasMany(PointsHistory, {
+    foreignKey: "userId",
+    as: "pointsHistory",
+  });
+
+  // UserPointsBalance - User
+  UserPointsBalance.belongsTo(User, {
+    foreignKey: "userId",
+    as: "user",
+    onDelete: "CASCADE",
+  });
+  User.hasOne(UserPointsBalance, {
+    foreignKey: "userId",
+    as: "pointsBalance",
+  });
+
+  // UserPointsBalance - Tier (current tier)
+  UserPointsBalance.belongsTo(Tier, {
+    foreignKey: "currentTierId",
+    as: "currentTier",
+    onDelete: "SET NULL",
+  });
+  Tier.hasMany(UserPointsBalance, {
+    foreignKey: "currentTierId",
+    as: "usersInTier",
   });
 }

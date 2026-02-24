@@ -25,9 +25,32 @@ export const ValidationMiddleware = (
         next();
       })
       .catch((errors: ValidationError[]) => {
-        const message = errors
-          .map((error: ValidationError) => Object.values(error.constraints))
-          .join(", ");
+        console.error("Validation errors:", JSON.stringify(errors, null, 2));
+        
+        const extractErrors = (error: ValidationError, parentPath = ""): string[] => {
+          const currentPath = parentPath ? `${parentPath}.${error.property}` : error.property;
+          const messages: string[] = [];
+          
+          // Add constraint errors if they exist
+          if (error.constraints) {
+            messages.push(...Object.values(error.constraints).map(msg => `${currentPath}: ${msg}`));
+          }
+          
+          // Recursively extract nested errors
+          if (error.children && error.children.length > 0) {
+            for (const child of error.children) {
+              messages.push(...extractErrors(child, currentPath));
+            }
+          }
+          
+          return messages;
+        };
+        
+        const allMessages = errors.flatMap(error => extractErrors(error));
+        const message = allMessages.length > 0 
+          ? allMessages.join("; ") 
+          : "Validation failed";
+          
         next(new HttpException(400, message));
       });
   };

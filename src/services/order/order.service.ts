@@ -12,6 +12,11 @@ import { PRODUCT_REPOSITORY_TOKEN } from "@/interfaces/product/IProductRepositor
 import type { IProductRepository } from "@/interfaces/product/IProductRepository.interface";
 import { PRODUCT_SERVICE_TOKEN } from "@/interfaces/product/IProductService.interface";
 import type { IProductService } from "@/interfaces/product/IProductService.interface";
+import { POINTS_HISTORY_SERVICE_TOKEN, type IPointsHistoryService } from "@/interfaces/points/IPointsHistoryService.interface";
+import { USER_POINTS_BALANCE_SERVICE_TOKEN, type IUserPointsBalanceService } from "@/interfaces/points/IUserPointsBalanceService.interface";
+import { EARNING_RULE_REPOSITORY_TOKEN, type IEarningRuleRepository } from "@/interfaces/points/IEarningRuleRepository.interface";
+import { TIER_REPOSITORY_TOKEN, type ITierRepository } from "@/interfaces/points/ITierRepository.interface";
+import { POINTS_CONFIG_REPOSITORY_TOKEN, type IPointsConfigRepository } from "@/interfaces/points/IPointsConfigRepository.interface";
 import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IOrderItem, IOrderItemsGroupedResponse, IOrderItemsByVendorAndDate, IOrderItemWithDetails } from "@/types/order.types";
 import { OrderStatus, OrderItemStatus, PaymentStatus } from "@/types/order.types";
 import { ReturnStatus } from "@/types/return.types";
@@ -26,7 +31,12 @@ export class OrderService implements IOrderService {
     @Inject(CART_REPOSITORY_TOKEN) private readonly cartRepository: ICartRepository,
     @Inject(PRODUCT_REPOSITORY_TOKEN) private readonly productRepository: IProductRepository,
     @Inject(PRODUCT_SERVICE_TOKEN) private readonly productService: IProductService,
-    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService
+    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService,
+    @Inject(POINTS_HISTORY_SERVICE_TOKEN) private readonly pointsHistoryService: IPointsHistoryService,
+    @Inject(USER_POINTS_BALANCE_SERVICE_TOKEN) private readonly userPointsBalanceService: IUserPointsBalanceService,
+    @Inject(EARNING_RULE_REPOSITORY_TOKEN) private readonly earningRuleRepository: IEarningRuleRepository,
+    @Inject(TIER_REPOSITORY_TOKEN) private readonly tierRepository: ITierRepository,
+    @Inject(POINTS_CONFIG_REPOSITORY_TOKEN) private readonly pointsConfigRepository: IPointsConfigRepository
   ) {}
 
   /**
@@ -217,6 +227,51 @@ export class OrderService implements IOrderService {
 
       await transaction.commit();
 
+      // Accrue pending points for purchase
+      try {
+        const activeConfig = await this.pointsConfigRepository.findActiveConfig();
+        if (!activeConfig?.pointsEnabled) return;
+
+        const earningRules = await this.earningRuleRepository.findBySourceType('purchase' as any);
+        if (earningRules.length > 0) {
+          const rule = earningRules.find(r => r.enabled) || earningRules[0];
+          const basePoints = Math.floor(totalAmount * ((rule).pointsAwarded || 1));
+          if (basePoints > 0) {
+            // Apply tier multiplier if user has a current tier
+            const currentBalance = await this.userPointsBalanceService.getBalance(userId);
+            let tierMultiplier = 1.0;
+            if (currentBalance?.currentTierId) {
+              const tier = await this.tierRepository.findById(currentBalance.currentTierId);
+              if (tier?.multiplier) {
+                tierMultiplier = Number(tier.multiplier);
+              }
+            }
+
+            const pointsEarned = Math.floor(basePoints * tierMultiplier);
+            const currentPending = currentBalance?.pendingPoints ?? 0;
+            const currentAvailable = currentBalance?.availablePoints ?? 0;
+            const pointsBalanceAfter = currentAvailable + currentPending + pointsEarned;
+
+            await this.pointsHistoryService.create({
+              userId,
+              transactionType: 'earn',
+              pointsChange: pointsEarned,
+              pointsBalanceAfter,
+              sourceType: 'purchase',
+              sourceId: order.id,
+              earningRuleId: rule.id,
+              description: `Points earned for order ${order.id}`,
+              metadata: { tierMultiplier, basePoints },
+            });
+
+            await this.userPointsBalanceService.incrementPendingPoints(userId, pointsEarned);
+          }
+        }
+      } catch (pointsError: any) {
+        // Points accrual failure should not fail the order
+        console.error('Failed to accrue points for order:', pointsError.message);
+      }
+
       // Fetch order with items
       const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
 
@@ -231,7 +286,7 @@ export class OrderService implements IOrderService {
             };
           })
         );
-        orderWithItems.items = enrichedItems;
+        orderWithItems.items = enrichedItems as any;
       }
 
       return orderWithItems!;
@@ -262,7 +317,7 @@ export class OrderService implements IOrderService {
             };
           })
         );
-        order.items = enrichedItems;
+        order.items = enrichedItems as any;
       }
 
       return order;
@@ -291,7 +346,7 @@ export class OrderService implements IOrderService {
             };
           })
         );
-        orderWithItems.items = enrichedItems;
+        orderWithItems.items = enrichedItems as any;
       }
 
       return orderWithItems;
@@ -340,7 +395,7 @@ export class OrderService implements IOrderService {
                 }
               })
             );
-            orderWithItems.items = enrichedItems;
+            orderWithItems.items = enrichedItems as any;
           } else {
             // Ensure items array exists even if empty
             orderWithItems.items = [];
@@ -381,7 +436,7 @@ export class OrderService implements IOrderService {
                 };
               })
             );
-            orderWithItems.items = enrichedItems;
+            orderWithItems.items = enrichedItems as any;
           }
           
           // Return orderWithItems with user details, or fallback to order with user details
@@ -458,7 +513,7 @@ export class OrderService implements IOrderService {
             };
           })
         );
-        orderWithItems.items = enrichedItems;
+        orderWithItems.items = enrichedItems as any;
       }
 
       return orderWithItems!;

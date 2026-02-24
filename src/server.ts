@@ -18,7 +18,17 @@ import { ReturnRoute } from "./routes/return/return.route";
 import { InventoryRoute } from "./routes/inventory/inventory.route";
 import { PayFastRoute } from "./routes/payfast/payfast.route";
 import { TestRoute } from "./routes/test.route";
+import { PointsRoutes } from "./routes/points";
 import { ValidateEnv } from "./utils/validateEnv";
+import { TierRoute } from "./routes/points/tier.route";
+import { ExpiryRuleRoute } from "./routes/points/expiryRule.route";
+import { EarningRuleRoute } from "./routes/points/earningRule.route";
+import { ReferralSlotRewardRoute } from "./routes/points/referralSlotReward.route";
+import { ReferralRewardConfigRoute } from "./routes/points/referralRewardConfig.route";
+import { TierBenefitRoute } from "./routes/points/tierBenefit.route";
+import { BenefitRoute } from "./routes/points/benefit.route";
+import { PointsHistoryRoute } from "./routes/points/pointsHistory.route";
+import { UserPointsBalanceRoute } from "./routes/points/userPointsBalance.route";
 
 ValidateEnv();
 
@@ -41,7 +51,16 @@ const app = new App([
   new ReturnRoute(),
   new InventoryRoute(),
   new PayFastRoute(),
-  new TestRoute(), // WebSocket testing endpoint
+  new PointsRoutes(),
+  new TierRoute(), 
+  new ExpiryRuleRoute(),
+  new EarningRuleRoute(),
+  new ReferralSlotRewardRoute(),
+  new ReferralRewardConfigRoute(),
+  new BenefitRoute(),
+  new TierBenefitRoute(),
+  new PointsHistoryRoute(),
+  new UserPointsBalanceRoute(),
 ]);
 
 app.listen();

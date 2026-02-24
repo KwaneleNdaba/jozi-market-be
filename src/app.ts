@@ -49,6 +49,28 @@ import { RETURN_REPOSITORY_TOKEN } from "./interfaces/return/IReturnRepository.i
 import { RETURN_SERVICE_TOKEN } from "./interfaces/return/IReturnService.interface";
 import { INVENTORY_REPOSITORY_TOKEN } from "@/interfaces/inventory/IInventoryRepository.interface";
 import { INVENTORY_SERVICE_TOKEN } from "@/interfaces/inventory/IInventoryService.interface";
+import { POINTS_CONFIG_REPOSITORY_TOKEN } from "@/interfaces/points/IPointsConfigRepository.interface";
+import { POINTS_CONFIG_SERVICE_TOKEN } from "@/interfaces/points/IPointsConfigService.interface";
+import { TIER_REPOSITORY_TOKEN } from "@/interfaces/points/ITierRepository.interface";
+import { TIER_SERVICE_TOKEN } from "@/interfaces/points/ITierService.interface";
+import { TIER_BENEFIT_REPOSITORY_TOKEN } from "@/interfaces/points/ITierBenefitRepository.interface";
+import { TIER_BENEFIT_SERVICE_TOKEN } from "@/interfaces/points/ITierBenefitService.interface";
+import { BENEFIT_REPOSITORY_TOKEN } from "@/interfaces/points/IBenefitRepository.interface";
+import { BENEFIT_SERVICE_TOKEN } from "@/interfaces/points/IBenefitService.interface";
+import { REFERRAL_REWARD_CONFIG_REPOSITORY_TOKEN } from "@/interfaces/points/IReferralRewardConfigRepository.interface";
+import { REFERRAL_REWARD_CONFIG_SERVICE_TOKEN } from "@/interfaces/points/IReferralRewardConfigService.interface";
+import { REFERRAL_SLOT_REWARD_REPOSITORY_TOKEN } from "@/interfaces/points/IReferralSlotRewardRepository.interface";
+import { REFERRAL_SLOT_REWARD_SERVICE_TOKEN } from "@/interfaces/points/IReferralSlotRewardService.interface";
+import { EARNING_RULE_REPOSITORY_TOKEN } from "@/interfaces/points/IEarningRuleRepository.interface";
+import { EARNING_RULE_SERVICE_TOKEN } from "@/interfaces/points/IEarningRuleService.interface";
+import { EXPIRY_RULE_REPOSITORY_TOKEN } from "@/interfaces/points/IExpiryRuleRepository.interface";
+import { EXPIRY_RULE_SERVICE_TOKEN } from "@/interfaces/points/IExpiryRuleService.interface";
+import { ABUSE_FLAG_REPOSITORY_TOKEN } from "@/interfaces/points/IAbusFlagRepository.interface";
+import { ABUSE_FLAG_SERVICE_TOKEN } from "@/interfaces/points/IAbusFlagService.interface";
+import { POINTS_HISTORY_REPOSITORY_TOKEN } from "@/interfaces/points/IPointsHistoryRepository.interface";
+import { POINTS_HISTORY_SERVICE_TOKEN } from "@/interfaces/points/IPointsHistoryService.interface";
+import { USER_POINTS_BALANCE_REPOSITORY_TOKEN } from "@/interfaces/points/IUserPointsBalanceRepository.interface";
+import { USER_POINTS_BALANCE_SERVICE_TOKEN } from "@/interfaces/points/IUserPointsBalanceService.interface";
 import { PAYFAST_SERVICE_TOKEN } from "./interfaces/payfast/IPayfastService.interface";
 import { apiGatewayMultipartMiddleware } from "./middlewares/apiGatewayMultipart";
 import { ErrorMiddleware } from "./middlewares/ErrorMiddleware";
@@ -68,6 +90,17 @@ import { CartRepository } from "./repositories/cart/cart.repository";
 import { OrderRepository } from "./repositories/order/order.repository";
 import { ReturnRepository } from "./repositories/return/return.repository";
 import { InventoryRepository } from "./repositories/inventory/inventory.repository";
+import { PointsConfigRepository } from "./repositories/points/pointsConfig.repository";
+import { TierRepository } from "./repositories/points/tier.repository";
+import { TierBenefitRepository } from "./repositories/points/tierBenefit.repository";
+import { BenefitRepository } from "./repositories/points/benefit.repository";
+import { ReferralRewardConfigRepository } from "./repositories/points/referralRewardConfig.repository";
+import { ReferralSlotRewardRepository } from "./repositories/points/referralSlotReward.repository";
+import { EarningRuleRepository } from "./repositories/points/earningRule.repository";
+import { ExpiryRuleRepository } from "./repositories/points/expiryRule.repository";
+import { AbusFlagRepository } from "./repositories/points/abuseFlag.repository";
+import { PointsHistoryRepository } from "./repositories/points/pointsHistory.repository";
+import { UserPointsBalanceRepository } from "./repositories/points/userPointsBalance.repository";
 import { AuthService } from "./services/auth/auth.service";
 import { FileUploadService } from "./services/file-upload/file-upload.service";
 import { VendorService } from "./services/vendor-application/vendor.service";
@@ -85,6 +118,17 @@ import { CartService } from "./services/cart/cart.service";
 import { OrderService } from "./services/order/order.service";
 import { ReturnService } from "./services/return/return.service";
 import { InventoryService } from "./services/inventory/inventory.service";
+import { PointsConfigService } from "./services/points/pointsConfig.service";
+import { TierService } from "./services/points/tier.service";
+import { TierBenefitService } from "./services/points/tierBenefit.service";
+import { BenefitService } from "./services/points/benefit.service";
+import { ReferralRewardConfigService } from "./services/points/referralRewardConfig.service";
+import { ReferralSlotRewardService } from "./services/points/referralSlotReward.service";
+import { EarningRuleService } from "./services/points/earningRule.service";
+import { ExpiryRuleService } from "./services/points/expiryRule.service";
+import { AbusFlagService } from "./services/points/abuseFlag.service";
+import { PointsHistoryService } from "./services/points/pointsHistory.service";
+import { UserPointsBalanceService } from "./services/points/userPointsBalance.service";
 import { PayFastService } from "./services/payfast/payfast.service";
 import type { Routes } from "./types/routes.interface";
 import { logger, stream } from "./utils/logger";
@@ -183,6 +227,19 @@ export class App {
     Container.set(ORDER_REPOSITORY_TOKEN, new OrderRepository());
     Container.set(RETURN_REPOSITORY_TOKEN, new ReturnRepository());
     Container.set(INVENTORY_REPOSITORY_TOKEN, new InventoryRepository());
+    
+    // Points System Repositories
+    Container.set(POINTS_CONFIG_REPOSITORY_TOKEN, new PointsConfigRepository());
+    Container.set(TIER_REPOSITORY_TOKEN, new TierRepository());
+    Container.set(TIER_BENEFIT_REPOSITORY_TOKEN, new TierBenefitRepository());
+    Container.set(BENEFIT_REPOSITORY_TOKEN, new BenefitRepository());
+    Container.set(REFERRAL_REWARD_CONFIG_REPOSITORY_TOKEN, new ReferralRewardConfigRepository());
+    Container.set(REFERRAL_SLOT_REWARD_REPOSITORY_TOKEN, new ReferralSlotRewardRepository());
+    Container.set(EARNING_RULE_REPOSITORY_TOKEN, new EarningRuleRepository());
+    Container.set(EXPIRY_RULE_REPOSITORY_TOKEN, new ExpiryRuleRepository());
+    Container.set(ABUSE_FLAG_REPOSITORY_TOKEN, new AbusFlagRepository());
+    Container.set(POINTS_HISTORY_REPOSITORY_TOKEN, new PointsHistoryRepository());
+    Container.set(USER_POINTS_BALANCE_REPOSITORY_TOKEN, new UserPointsBalanceRepository());
 
     // Register Services (depend on repositories via tokens)
     Container.set(AUTH_SERVICE_TOKEN, new AuthService(Container.get(AUTH_REPOSITORY_TOKEN)));
@@ -224,7 +281,12 @@ export class App {
       Container.get(CART_REPOSITORY_TOKEN),
       Container.get(PRODUCT_REPOSITORY_TOKEN),
       Container.get(PRODUCT_SERVICE_TOKEN),
-      Container.get(INVENTORY_SERVICE_TOKEN)
+      Container.get(INVENTORY_SERVICE_TOKEN),
+      new PointsHistoryService(Container.get(POINTS_HISTORY_REPOSITORY_TOKEN)),
+      new UserPointsBalanceService(Container.get(USER_POINTS_BALANCE_REPOSITORY_TOKEN)),
+      Container.get(EARNING_RULE_REPOSITORY_TOKEN),
+      Container.get(TIER_REPOSITORY_TOKEN),
+      Container.get(POINTS_CONFIG_REPOSITORY_TOKEN)
     ));
     Container.set(PAYFAST_SERVICE_TOKEN, new PayFastService(
       Container.get(CART_REPOSITORY_TOKEN),
@@ -232,6 +294,19 @@ export class App {
       Container.get(ORDER_SERVICE_TOKEN),
       Container.get(INVENTORY_SERVICE_TOKEN)
     ));
+    
+    // Points System Services
+    Container.set(POINTS_CONFIG_SERVICE_TOKEN, new PointsConfigService(Container.get(POINTS_CONFIG_REPOSITORY_TOKEN)));
+    Container.set(TIER_SERVICE_TOKEN, new TierService(Container.get(TIER_REPOSITORY_TOKEN)));
+    Container.set(TIER_BENEFIT_SERVICE_TOKEN, new TierBenefitService(Container.get(TIER_BENEFIT_REPOSITORY_TOKEN)));
+    Container.set(BENEFIT_SERVICE_TOKEN, new BenefitService(Container.get(BENEFIT_REPOSITORY_TOKEN)));
+    Container.set(REFERRAL_REWARD_CONFIG_SERVICE_TOKEN, new ReferralRewardConfigService(Container.get(REFERRAL_REWARD_CONFIG_REPOSITORY_TOKEN)));
+    Container.set(REFERRAL_SLOT_REWARD_SERVICE_TOKEN, new ReferralSlotRewardService(Container.get(REFERRAL_SLOT_REWARD_REPOSITORY_TOKEN)));
+    Container.set(EARNING_RULE_SERVICE_TOKEN, new EarningRuleService(Container.get(EARNING_RULE_REPOSITORY_TOKEN)));
+    Container.set(EXPIRY_RULE_SERVICE_TOKEN, new ExpiryRuleService(Container.get(EXPIRY_RULE_REPOSITORY_TOKEN)));
+    Container.set(ABUSE_FLAG_SERVICE_TOKEN, new AbusFlagService(Container.get(ABUSE_FLAG_REPOSITORY_TOKEN)));
+    Container.set(POINTS_HISTORY_SERVICE_TOKEN, new PointsHistoryService(Container.get(POINTS_HISTORY_REPOSITORY_TOKEN)));
+    Container.set(USER_POINTS_BALANCE_SERVICE_TOKEN, new UserPointsBalanceService(Container.get(USER_POINTS_BALANCE_REPOSITORY_TOKEN)));
   }
 
   private initializeRedis() {

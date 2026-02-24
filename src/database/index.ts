@@ -21,6 +21,17 @@ import ReturnItem from "@/models/return-item/returnItem.model";
 import Inventory from "@/models/inventory/inventory.model";
 import InventoryMovement from "@/models/inventory-movement/inventoryMovement.model";
 import InventoryRestock from "@/models/inventory-restock/inventoryRestock.model";
+import PointsConfig from "@/models/points-config/pointsConfig.model";
+import Tier from "@/models/tier/tier.model";
+import TierBenefit from "@/models/tier-benefit/tierBenefit.model";
+import Benefit from "@/models/benefit/benefit.model";
+import ReferralRewardConfig from "@/models/referral-reward-config/referralRewardConfig.model";
+import ReferralSlotReward from "@/models/referral-slot-reward/referralSlotReward.model";
+import EarningRule from "@/models/earning-rule/earningRule.model";
+import ExpiryRule from "@/models/expiry-rule/expiryRule.model";
+import AbuseFlag from "@/models/abuse-flag/abuseFlag.model";
+import PointsHistory from "@/models/points-history/pointsHistory.model";
+import UserPointsBalance from "@/models/user-points-balance/userPointsBalance.model";
 import { DB_HOST, DB_NAME, DB_PASSWORD, DB_USER } from "../config";
 import User from "../models/user/user.model";
 import { setupAssociations } from "./associations";
@@ -93,6 +104,19 @@ Inventory.initialize(dbConnection);
 InventoryMovement.initialize(dbConnection);
 InventoryRestock.initialize(dbConnection);
 
+// Points system models
+PointsConfig.initialize(dbConnection);
+Tier.initialize(dbConnection);
+TierBenefit.initialize(dbConnection);
+Benefit.initialize(dbConnection);
+ReferralRewardConfig.initialize(dbConnection);
+ReferralSlotReward.initialize(dbConnection);
+EarningRule.initialize(dbConnection);
+ExpiryRule.initialize(dbConnection);
+AbuseFlag.initialize(dbConnection);
+PointsHistory.initialize(dbConnection);
+UserPointsBalance.initialize(dbConnection);
+
 setupAssociations();
 const syncDatabase = async () => {
   try {
@@ -113,7 +137,7 @@ const syncDatabase = async () => {
       // Try to sync individual models that might not have the issue
       try {
         // Sync without alter to avoid modifying existing tables
-        await dbConnection.sync({ alter: false });
+        await dbConnection.sync({ alter: true });
         console.log("Database models initialized (without altering existing tables)");
       } catch (syncError) {
         console.error("Failed to sync database:", syncError);
@@ -122,7 +146,7 @@ const syncDatabase = async () => {
     } else {
       // For other errors, try basic sync
       try {
-        await dbConnection.sync({ alter: false });
+        await dbConnection.sync({ alter: true });
         console.log("Database synced successfully (basic mode - no alterations)");
       } catch (fallbackError) {
         console.error("Fallback sync failed:", fallbackError);

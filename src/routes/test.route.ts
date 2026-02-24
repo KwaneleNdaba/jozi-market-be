@@ -39,7 +39,7 @@ export class TestRoute implements Routes {
         }
 
         socketService.emitProductStockUpdate(productId, {
-          quantityAvailable: inventory.quantityAvailable,
+          quantityAvailable: 100,
           quantityReserved: inventory.quantityReserved,
           reorderLevel: inventory.reorderLevel,
           stock: inventory.quantityAvailable,
