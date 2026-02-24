@@ -23,7 +23,6 @@ class Inventory extends Model {
         productVariantId: {
           type: DataTypes.UUID,
           allowNull: true,
-          unique: true,
           references: {
             model: "product_variants",
             key: "id",
@@ -34,7 +33,6 @@ class Inventory extends Model {
         productId: {
           type: DataTypes.UUID,
           allowNull: true,
-          unique: true,
           references: {
             model: "products",
             key: "id",

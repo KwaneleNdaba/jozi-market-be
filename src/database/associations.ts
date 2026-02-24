@@ -19,7 +19,6 @@ import OrderItem from "@/models/order-item/orderItem.model";
 import Return from "@/models/return/return.model";
 import ReturnItem from "@/models/return-item/returnItem.model";
 import Inventory from "@/models/inventory/inventory.model";
-import InventoryMovement from "@/models/inventory-movement/inventoryMovement.model";
 import InventoryRestock from "@/models/inventory-restock/inventoryRestock.model";
 import PointsConfig from "@/models/points-config/pointsConfig.model";
 import Tier from "@/models/tier/tier.model";
@@ -416,20 +415,6 @@ export function setupAssociations() {
   Product.hasOne(Inventory, {
     foreignKey: "productId",
     as: "inventory",
-    onDelete: "CASCADE",
-    onUpdate: "CASCADE",
-  });
-
-  // InventoryMovement - ProductVariant relationship
-  InventoryMovement.belongsTo(ProductVariant, {
-    foreignKey: "productVariantId",
-    as: "variant",
-    onDelete: "CASCADE",
-    onUpdate: "CASCADE",
-  });
-  ProductVariant.hasMany(InventoryMovement, {
-    foreignKey: "productVariantId",
-    as: "movements",
     onDelete: "CASCADE",
     onUpdate: "CASCADE",
   });

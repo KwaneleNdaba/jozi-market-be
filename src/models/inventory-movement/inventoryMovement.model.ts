@@ -23,22 +23,10 @@ class InventoryMovement extends Model {
         productVariantId: {
           type: DataTypes.UUID,
           allowNull: true,
-          references: {
-            model: "product_variants",
-            key: "id",
-          },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
         },
         productId: {
           type: DataTypes.UUID,
           allowNull: true,
-          references: {
-            model: "products",
-            key: "id",
-          },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
         },
         type: {
           type: DataTypes.ENUM("IN", "OUT", "ADJUSTMENT", "RETURN"),
