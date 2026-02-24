@@ -281,6 +281,14 @@ export class InventoryRepository implements IInventoryRepository {
     referenceType?: string | null;
   }): Promise<IInventoryMovement> {
     try {
+      // If a variantId is provided, confirm it still exists — if not, fall back to productId only
+      if (data.productVariantId) {
+        const variantExists = await ProductVariant.findByPk(data.productVariantId, { attributes: ["id"], raw: true });
+        if (!variantExists) {
+          data = { ...data, productVariantId: null };
+        }
+      }
+
       const movement = await InventoryMovement.create(data as any);
       return movement.get({ plain: true }) as IInventoryMovement;
     } catch (error: any) {

@@ -128,56 +128,42 @@ export class InventoryService implements IInventoryService {
     if (!order || !order.items || order.items.length === 0) return;
 
     for (const item of order.items) {
-      const qty = typeof item.quantity === "number" ? item.quantity : parseInt(String(item.quantity), 10);
-      const variantId = item.productVariantId;
-      const productId = item.productId;
+      try {
+        const qty = typeof item.quantity === "number" ? item.quantity : parseInt(String(item.quantity), 10);
+        const variantId = item.productVariantId;
+        const productId = item.productId;
 
-      if (variantId) {
-        const variantExists = await ProductVariant.findByPk(variantId, { attributes: ["id"], raw: true });
-        if (!variantExists) {
-          // Variant was deleted after order was placed — fall through to product-level
-          if (productId) {
-            await this.inventoryRepository.deductByProduct(productId, qty);
-            await this.inventoryRepository.createMovement({
-              productId,
-              type: InventoryMovementType.OUT,
-              quantity: qty,
-              reason: "Sale",
-              referenceId: orderId,
-              referenceType: "order",
-            });
-            const updated = await this.inventoryRepository.findByProductId(productId);
-            if (updated) await this.syncProductStock(productId, updated.quantityAvailable);
-          }
-          continue;
+        if (variantId) {
+          const inv = await this.inventoryRepository.findByVariantId(variantId);
+          if (!inv) continue;
+          await this.inventoryRepository.deduct(variantId, qty);
+          await this.inventoryRepository.createMovement({
+            productVariantId: variantId,
+            productId,
+            type: InventoryMovementType.OUT,
+            quantity: qty,
+            reason: "Sale",
+            referenceId: orderId,
+            referenceType: "order",
+          });
+          const updated = await this.inventoryRepository.findByVariantId(variantId);
+          if (updated) await this.syncVariantStock(variantId, updated.quantityAvailable);
+        } else if (productId) {
+          await this.inventoryRepository.findOrCreateForProduct(productId);
+          await this.inventoryRepository.deductByProduct(productId, qty);
+          await this.inventoryRepository.createMovement({
+            productId,
+            type: InventoryMovementType.OUT,
+            quantity: qty,
+            reason: "Sale",
+            referenceId: orderId,
+            referenceType: "order",
+          });
+          const updated = await this.inventoryRepository.findByProductId(productId);
+          if (updated) await this.syncProductStock(productId, updated.quantityAvailable);
         }
-
-        const inv = await this.inventoryRepository.findByVariantId(variantId);
-        if (!inv) continue;
-        await this.inventoryRepository.deduct(variantId, qty);
-        await this.inventoryRepository.createMovement({
-          productVariantId: variantId,
-          type: InventoryMovementType.OUT,
-          quantity: qty,
-          reason: "Sale",
-          referenceId: orderId,
-          referenceType: "order",
-        });
-        const updated = await this.inventoryRepository.findByVariantId(variantId);
-        if (updated) await this.syncVariantStock(variantId, updated.quantityAvailable);
-      } else if (productId) {
-        const inv = await this.inventoryRepository.findOrCreateForProduct(productId);
-        await this.inventoryRepository.deductByProduct(productId, qty);
-        await this.inventoryRepository.createMovement({
-          productId,
-          type: InventoryMovementType.OUT,
-          quantity: qty,
-          reason: "Sale",
-          referenceId: orderId,
-          referenceType: "order",
-        });
-        const updated = await this.inventoryRepository.findByProductId(productId);
-        if (updated) await this.syncProductStock(productId, updated.quantityAvailable);
+      } catch (itemError: any) {
+        console.error(`Failed to deduct inventory for order item (productId: ${item.productId}, variantId: ${item.productVariantId}):`, itemError.message);
       }
     }
   }
