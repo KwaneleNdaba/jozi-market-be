@@ -377,6 +377,8 @@ export class PayFastService implements IPayfastService {
           unitPrice: 0, // Free product
           totalPrice: 0, // Free product
           status: "pending",
+          isCampaignClaimItem: true, // Mark as campaign claim item
+          campaignClaimId: claim.id, // Link to specific campaign claim
         } as any);
       }
 
@@ -386,6 +388,7 @@ export class PayFastService implements IPayfastService {
         orderNumber: paymentReference,
         paymentStatus: "paid",
         campaignClaimIds: context.campaignClaimIds,
+        isCampaignClaimOrder: true, // Mark as campaign claim order
         totalAmount: 0, // Only delivery fee was charged, but that's not part of order items
       } as any);
 

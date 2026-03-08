@@ -54,6 +54,8 @@ export interface IOrderItem {
   unitPrice: number;
   totalPrice: number;
   status?: OrderItemStatus | string;
+  isCampaignClaimItem?: boolean; // Flag to indicate if this item is from a campaign claim
+  campaignClaimId?: string | null; // Link to campaign claim if this item is from a free product campaign
   // Return flags
   isReturnRequested?: boolean;
   isReturnApproved?: boolean;

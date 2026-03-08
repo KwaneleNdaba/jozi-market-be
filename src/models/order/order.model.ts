@@ -12,6 +12,7 @@ class Order extends Model {
   public email!: string;
   public phone?: string;
   public notes?: string;
+  public isCampaignClaimOrder?: boolean; // Flag to indicate if this order is associated with campaign claims
 
   // Campaign claim IDs for free product orders
   public campaignClaimIds?: string[];
@@ -111,6 +112,11 @@ class Order extends Model {
           defaultValue: false,
         },
         isReturnReviewed: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        isCampaignClaimOrder: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,

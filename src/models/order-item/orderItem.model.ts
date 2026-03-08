@@ -10,6 +10,10 @@ class OrderItem extends Model {
   public totalPrice!: number;
   public status!: string;
 
+  // Campaign claim fields
+  public isCampaignClaimItem?: boolean; // Flag to indicate if this item is from a campaign claim
+  public campaignClaimId?: string | null; // Link to campaign claim if this item is from a free product campaign
+
   // Rejection fields (KEEP)
   public rejectionReason?: string | null;
   public rejectedBy?: string | null;
@@ -79,6 +83,20 @@ class OrderItem extends Model {
           ),
           allowNull: false,
           defaultValue: "pending",
+        },
+
+        // Campaign claim fields
+        isCampaignClaimItem: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        campaignClaimId: {
+          type: DataTypes.UUID,
+          allowNull: true,
+          references: { model: "campaign_claims", key: "id" },
+          onDelete: "SET NULL",
+          onUpdate: "CASCADE",
         },
 
         // Rejection fields (KEEP)
