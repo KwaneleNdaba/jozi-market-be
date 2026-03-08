@@ -71,6 +71,12 @@ import { POINTS_HISTORY_REPOSITORY_TOKEN } from "@/interfaces/points/IPointsHist
 import { POINTS_HISTORY_SERVICE_TOKEN } from "@/interfaces/points/IPointsHistoryService.interface";
 import { USER_POINTS_BALANCE_REPOSITORY_TOKEN } from "@/interfaces/points/IUserPointsBalanceRepository.interface";
 import { USER_POINTS_BALANCE_SERVICE_TOKEN } from "@/interfaces/points/IUserPointsBalanceService.interface";
+import { FREE_PRODUCT_CAMPAIGN_REPOSITORY_TOKEN } from "@/interfaces/free-product-campaign/IFreeProductCampaignRepository.interface";
+import { FREE_PRODUCT_CAMPAIGN_SERVICE_TOKEN } from "@/interfaces/free-product-campaign/IFreeProductCampaignService.interface";
+import { CAMPAIGN_CLAIM_REPOSITORY_TOKEN } from "@/interfaces/campaign-claim/ICampaignClaimRepository.interface";
+import { CAMPAIGN_CLAIM_SERVICE_TOKEN } from "@/interfaces/campaign-claim/ICampaignClaimService.interface";
+import { POINTS_CLAIM_REPOSITORY_TOKEN } from "@/interfaces/points-claim/IPointsClaimRepository.interface";
+import { POINTS_CLAIM_SERVICE_TOKEN } from "@/interfaces/points-claim/IPointsClaimService.interface";
 import { PAYFAST_SERVICE_TOKEN } from "./interfaces/payfast/IPayfastService.interface";
 import { apiGatewayMultipartMiddleware } from "./middlewares/apiGatewayMultipart";
 import { ErrorMiddleware } from "./middlewares/ErrorMiddleware";
@@ -101,6 +107,9 @@ import { ExpiryRuleRepository } from "./repositories/points/expiryRule.repositor
 import { AbusFlagRepository } from "./repositories/points/abuseFlag.repository";
 import { PointsHistoryRepository } from "./repositories/points/pointsHistory.repository";
 import { UserPointsBalanceRepository } from "./repositories/points/userPointsBalance.repository";
+import { PointsClaimRepository } from "./repositories/points-claim/pointsClaim.repository";
+import { FreeProductCampaignRepository } from "./repositories/free-product-campaign/freeProductCampaign.repository";
+import { CampaignClaimRepository } from "./repositories/campaign-claim/campaignClaim.repository";
 import { AuthService } from "./services/auth/auth.service";
 import { FileUploadService } from "./services/file-upload/file-upload.service";
 import { VendorService } from "./services/vendor-application/vendor.service";
@@ -129,9 +138,13 @@ import { ExpiryRuleService } from "./services/points/expiryRule.service";
 import { AbusFlagService } from "./services/points/abuseFlag.service";
 import { PointsHistoryService } from "./services/points/pointsHistory.service";
 import { UserPointsBalanceService } from "./services/points/userPointsBalance.service";
+import { PointsClaimService } from "./services/points-claim/pointsClaim.service";
+import { FreeProductCampaignService } from "./services/free-product-campaign/freeProductCampaign.service";
+import { CampaignClaimService } from "./services/campaign-claim/campaignClaim.service";
 import { PayFastService } from "./services/payfast/payfast.service";
 import type { Routes } from "./types/routes.interface";
 import { logger, stream } from "./utils/logger";
+import { expirePointsJob } from "./jobs/expirePoints.job";
 
 export class App {
   public app: express.Application;
@@ -154,6 +167,7 @@ export class App {
     this.initializeRoutes(routes);
     this.initializeErrorHandling();
     this.initializeUnhandledErrorHandling();
+    this.initializeCronJobs();
   }
 
   public listen() {
@@ -240,6 +254,9 @@ export class App {
     Container.set(ABUSE_FLAG_REPOSITORY_TOKEN, new AbusFlagRepository());
     Container.set(POINTS_HISTORY_REPOSITORY_TOKEN, new PointsHistoryRepository());
     Container.set(USER_POINTS_BALANCE_REPOSITORY_TOKEN, new UserPointsBalanceRepository());
+    Container.set(POINTS_CLAIM_REPOSITORY_TOKEN, new PointsClaimRepository());
+    Container.set(FREE_PRODUCT_CAMPAIGN_REPOSITORY_TOKEN, new FreeProductCampaignRepository());
+    Container.set(CAMPAIGN_CLAIM_REPOSITORY_TOKEN, new CampaignClaimRepository());
 
     // Register Services (depend on repositories via tokens)
     Container.set(AUTH_SERVICE_TOKEN, new AuthService(Container.get(AUTH_REPOSITORY_TOKEN)));
@@ -286,13 +303,16 @@ export class App {
       new UserPointsBalanceService(Container.get(USER_POINTS_BALANCE_REPOSITORY_TOKEN)),
       Container.get(EARNING_RULE_REPOSITORY_TOKEN),
       Container.get(TIER_REPOSITORY_TOKEN),
-      Container.get(POINTS_CONFIG_REPOSITORY_TOKEN)
+      Container.get(POINTS_CONFIG_REPOSITORY_TOKEN),
+      Container.get(POINTS_CLAIM_REPOSITORY_TOKEN),
+      Container.get(EXPIRY_RULE_REPOSITORY_TOKEN)
     ));
     Container.set(PAYFAST_SERVICE_TOKEN, new PayFastService(
       Container.get(CART_REPOSITORY_TOKEN),
       Container.get(ORDER_REPOSITORY_TOKEN),
       Container.get(ORDER_SERVICE_TOKEN),
-      Container.get(INVENTORY_SERVICE_TOKEN)
+      Container.get(INVENTORY_SERVICE_TOKEN),
+      Container.get(CAMPAIGN_CLAIM_REPOSITORY_TOKEN)
     ));
     
     // Points System Services
@@ -307,6 +327,19 @@ export class App {
     Container.set(ABUSE_FLAG_SERVICE_TOKEN, new AbusFlagService(Container.get(ABUSE_FLAG_REPOSITORY_TOKEN)));
     Container.set(POINTS_HISTORY_SERVICE_TOKEN, new PointsHistoryService(Container.get(POINTS_HISTORY_REPOSITORY_TOKEN)));
     Container.set(USER_POINTS_BALANCE_SERVICE_TOKEN, new UserPointsBalanceService(Container.get(USER_POINTS_BALANCE_REPOSITORY_TOKEN)));
+    Container.set(POINTS_CLAIM_SERVICE_TOKEN, new PointsClaimService(
+      Container.get(POINTS_CLAIM_REPOSITORY_TOKEN),
+      Container.get(POINTS_HISTORY_SERVICE_TOKEN),
+      Container.get(USER_POINTS_BALANCE_SERVICE_TOKEN),
+      Container.get(EARNING_RULE_REPOSITORY_TOKEN)
+    ));
+    Container.set(FREE_PRODUCT_CAMPAIGN_SERVICE_TOKEN, new FreeProductCampaignService(Container.get(FREE_PRODUCT_CAMPAIGN_REPOSITORY_TOKEN)));
+    Container.set(CAMPAIGN_CLAIM_SERVICE_TOKEN, new CampaignClaimService(
+      Container.get(CAMPAIGN_CLAIM_REPOSITORY_TOKEN),
+      Container.get(FREE_PRODUCT_CAMPAIGN_REPOSITORY_TOKEN),
+      Container.get(USER_POINTS_BALANCE_REPOSITORY_TOKEN),
+      Container.get(POINTS_HISTORY_REPOSITORY_TOKEN)
+    ));
   }
 
   private initializeRedis() {
@@ -415,5 +448,14 @@ export class App {
     process.on("uncaughtException", (error: Error) => {
       logger.error(`Uncaught Exception: ${error}`);
     });
+  }
+
+  private initializeCronJobs() {
+    logger.info("Initializing cron jobs...");
+    
+    // Start points expiry job (runs daily at 2:00 AM)
+    expirePointsJob.start();
+    
+    logger.info("Cron jobs initialized successfully");
   }
 }

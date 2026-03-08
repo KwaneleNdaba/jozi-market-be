@@ -39,7 +39,10 @@ class PointsHistory extends Model {
             "adjust",
             "gift_sent",
             "gift_received",
-            "refund"
+            "refund",
+            "claim",
+            "pending_to_claimable",
+            "engagement"
           ),
           allowNull: false,
         },

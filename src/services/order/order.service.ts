@@ -17,6 +17,9 @@ import { USER_POINTS_BALANCE_SERVICE_TOKEN, type IUserPointsBalanceService } fro
 import { EARNING_RULE_REPOSITORY_TOKEN, type IEarningRuleRepository } from "@/interfaces/points/IEarningRuleRepository.interface";
 import { TIER_REPOSITORY_TOKEN, type ITierRepository } from "@/interfaces/points/ITierRepository.interface";
 import { POINTS_CONFIG_REPOSITORY_TOKEN, type IPointsConfigRepository } from "@/interfaces/points/IPointsConfigRepository.interface";
+import { POINTS_CLAIM_REPOSITORY_TOKEN, type IPointsClaimRepository } from "@/interfaces/points-claim/IPointsClaimRepository.interface";
+import { EXPIRY_RULE_REPOSITORY_TOKEN, type IExpiryRuleRepository } from "@/interfaces/points/IExpiryRuleRepository.interface";
+import type { ICreatePointsClaim } from "@/interfaces/points-claim/IPointsClaim.interface";
 import type { IOrder, ICreateOrder, IUpdateOrder, IRequestCancellation, IVendorOrdersResponse, IOrdersGroupedByDate, IOrderItem, IOrderItemsGroupedResponse, IOrderItemsByVendorAndDate, IOrderItemWithDetails } from "@/types/order.types";
 import { OrderStatus, OrderItemStatus, PaymentStatus } from "@/types/order.types";
 import { ReturnStatus } from "@/types/return.types";
@@ -36,7 +39,9 @@ export class OrderService implements IOrderService {
     @Inject(USER_POINTS_BALANCE_SERVICE_TOKEN) private readonly userPointsBalanceService: IUserPointsBalanceService,
     @Inject(EARNING_RULE_REPOSITORY_TOKEN) private readonly earningRuleRepository: IEarningRuleRepository,
     @Inject(TIER_REPOSITORY_TOKEN) private readonly tierRepository: ITierRepository,
-    @Inject(POINTS_CONFIG_REPOSITORY_TOKEN) private readonly pointsConfigRepository: IPointsConfigRepository
+    @Inject(POINTS_CONFIG_REPOSITORY_TOKEN) private readonly pointsConfigRepository: IPointsConfigRepository,
+    @Inject(POINTS_CLAIM_REPOSITORY_TOKEN) private readonly pointsClaimRepository: IPointsClaimRepository,
+    @Inject(EXPIRY_RULE_REPOSITORY_TOKEN) private readonly expiryRuleRepository: IExpiryRuleRepository
   ) {}
 
   /**
@@ -506,6 +511,86 @@ export class OrderService implements IOrderService {
       }
 
       const updatedOrder = await this.orderRepository.update(updateData);
+
+      // If order status changed to DELIVERED, automatically give points to user (no manual claim needed)
+      if (updateData.status === OrderStatus.DELIVERED && order.status !== OrderStatus.DELIVERED) {
+        try {
+          // Find the points history records for this order
+          const pointsRecords = await this.pointsHistoryService.findBySourceId(order.id!);
+          
+          // Find the earn transaction for this purchase
+          const earnRecord = pointsRecords.find(
+            record => record.transactionType === 'earn' && record.sourceType === 'purchase'
+          );
+          
+          if (earnRecord && earnRecord.earningRuleId) {
+            const pointsEarned = earnRecord.pointsChange;
+            
+            // Get the EarningRule to find expiry info
+            const earningRule = await this.earningRuleRepository.findById(earnRecord.earningRuleId);
+            
+            if (earningRule && earningRule.expiryRuleId) {
+              // Get the ExpiryRule to calculate expiration date
+              const expiryRule = await this.expiryRuleRepository.findById(earningRule.expiryRuleId);
+              
+              if (expiryRule) {
+                // Move from pending to available (skip claimable state)
+                await this.userPointsBalanceService.confirmPendingPoints(updatedOrder.userId, pointsEarned);
+                
+                // Calculate expiration date: earnedAt + expiryDays
+                const earnedAt = earnRecord.createdAt;
+                const expiresAt = new Date(earnedAt);
+                expiresAt.setDate(expiresAt.getDate() + expiryRule.expiryDays);
+                
+                // Create PointsClaim record (for expiry tracking)
+                const claimData: ICreatePointsClaim = {
+                  userId: updatedOrder.userId,
+                  pointsClaimed: pointsEarned,
+                  sourceType: earningRule.sourceType as any,
+                  sourceId: order.id,
+                  expiryRuleId: earningRule.expiryRuleId,
+                  earnedAt: earnedAt,
+                  claimedAt: new Date(), // Auto-claimed on delivery
+                  expiresAt: expiresAt,
+                  pointsHistoryId: earnRecord.id,
+                  metadata: {
+                    earningRuleId: earningRule.id,
+                    ruleName: earningRule.ruleName,
+                    orderDelivered: true,
+                    autoClaimed: true
+                  }
+                };
+                
+                await this.pointsClaimRepository.create(claimData);
+                
+                // Record the transaction
+                const currentBalance = await this.userPointsBalanceService.getBalance(updatedOrder.userId);
+                const pointsBalanceAfter = (currentBalance?.availablePoints || 0) + (currentBalance?.pendingPoints || 0);
+                
+                await this.pointsHistoryService.create({
+                  userId: updatedOrder.userId,
+                  transactionType: 'claim',
+                  pointsChange: pointsEarned,
+                  pointsBalanceAfter,
+                  sourceType: 'purchase',
+                  sourceId: order.id,
+                  earningRuleId: earnRecord.earningRuleId,
+                  description: `${pointsEarned} points automatically awarded for delivered order`,
+                  metadata: { 
+                    orderId: order.id, 
+                    orderStatus: OrderStatus.DELIVERED,
+                    autoClaimed: true,
+                    expiresAt: expiresAt.toISOString()
+                  }
+                });
+              }
+            }
+          }
+        } catch (pointsError: any) {
+          // Points movement failure should not fail the order update
+          console.error('Failed to award points for delivered order:', pointsError.message);
+        }
+      }
 
       // Fetch order with items
       const orderWithItems = await this.orderRepository.getOrderWithItems(updatedOrder.id!);

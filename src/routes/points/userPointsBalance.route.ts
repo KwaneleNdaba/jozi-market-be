@@ -4,7 +4,7 @@ import type { Routes } from "@/types/routes.interface";
 import { UserPointsBalanceController } from "@/controllers/points/userPointsBalance.controller";
 
 export class UserPointsBalanceRoute implements Routes {
-  public path = "/user-points-balance";
+  public path = "/points/user-points-balance";
   public router = Router();
   public controller = new UserPointsBalanceController();
 
@@ -14,5 +14,6 @@ export class UserPointsBalanceRoute implements Routes {
 
   private initializeRoutes() {
     this.router.get(`${this.path}/user/:userId`, authorizationMiddleware, this.controller.getBalance);
+    this.router.get(`${this.path}/user/:userId/dashboard-summary`, authorizationMiddleware, this.controller.getDashboardSummary);
   }
 }

@@ -29,6 +29,9 @@ import { TierBenefitRoute } from "./routes/points/tierBenefit.route";
 import { BenefitRoute } from "./routes/points/benefit.route";
 import { PointsHistoryRoute } from "./routes/points/pointsHistory.route";
 import { UserPointsBalanceRoute } from "./routes/points/userPointsBalance.route";
+import { PointsClaimRoute } from "./routes/points-claim/pointsClaim.route";
+import { FreeProductCampaignRoute } from "./routes/free-product-campaign/freeProductCampaign.route";
+import { CampaignClaimRoute } from "./routes/campaign-claim/campaignClaim.route";
 
 ValidateEnv();
 
@@ -61,6 +64,10 @@ const app = new App([
   new TierBenefitRoute(),
   new PointsHistoryRoute(),
   new UserPointsBalanceRoute(),
+  new PointsClaimRoute(),
+  new FreeProductCampaignRoute(),
+  new CampaignClaimRoute(),
+  
 ]);
 
 app.listen();

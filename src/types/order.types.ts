@@ -105,6 +105,7 @@ export interface IOrder {
   notes?: string;
   items?: IOrderItem[];
   user?: IOrderUser;
+  campaignClaimIds?: string[]; // Array of campaign claim IDs for free product orders
   // Return flags
   isReturnRequested?: boolean;
   isReturnApproved?: boolean;
@@ -125,6 +126,7 @@ export interface ICreateOrder {
   email: string;
   phone?: string;
   notes?: string;
+  campaignClaimIds?: string[]; // Array of campaign claim IDs for free product orders
 }
 
 export interface IUpdateOrder {

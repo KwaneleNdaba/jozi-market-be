@@ -10,7 +10,9 @@ import { ORDER_SERVICE_TOKEN } from "@/interfaces/order/IOrderService.interface"
 import type { IOrderService } from "@/interfaces/order/IOrderService.interface";
 import { INVENTORY_SERVICE_TOKEN } from "@/interfaces/inventory/IInventoryService.interface";
 import type { IInventoryService } from "@/interfaces/inventory/IInventoryService.interface";
-import type { PaymentRequest, PaymentResponse, PaymentStatusResponse, PaymentContext, PayFastConfig } from "@/types/payfast.types";
+import { CAMPAIGN_CLAIM_REPOSITORY_TOKEN } from "@/interfaces/campaign-claim/ICampaignClaimRepository.interface";
+import type { ICampaignClaimRepository } from "@/interfaces/campaign-claim/ICampaignClaimRepository.interface";
+import type { PaymentRequest, PaymentResponse, PaymentStatusResponse, PaymentContext, PayFastConfig, CampaignClaimPaymentRequest } from "@/types/payfast.types";
 import { PaymentStatus } from "@/types/payfast.types";
 import type { ICreateOrder } from "@/types/order.types";
 
@@ -22,7 +24,8 @@ export class PayFastService implements IPayfastService {
     @Inject(CART_REPOSITORY_TOKEN) private readonly cartRepository: ICartRepository,
     @Inject(ORDER_REPOSITORY_TOKEN) private readonly orderRepository: IOrderRepository,
     @Inject(ORDER_SERVICE_TOKEN) private readonly orderService: IOrderService,
-    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService
+    @Inject(INVENTORY_SERVICE_TOKEN) private readonly inventoryService: IInventoryService,
+    @Inject(CAMPAIGN_CLAIM_REPOSITORY_TOKEN) private readonly campaignClaimRepository: ICampaignClaimRepository
   ) {
     // Cleanup old contexts every hour
     setInterval(() => this.cleanupOldContexts(), 60 * 60 * 1000);
@@ -104,6 +107,84 @@ export class PayFastService implements IPayfastService {
       };
     } catch (error: any) {
       console.error(`❌ Error generating payment:`, error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(500, error.message);
+    }
+  }
+
+  public async generatePaymentForCampaignClaims(request: CampaignClaimPaymentRequest): Promise<PaymentResponse> {
+    try {
+      console.log(`🎁 Generating campaign claim payment for user ${request.userId}`);
+
+      const config = this.getPayFastConfig();
+      this.validateConfig(config);
+
+      // Validate campaign claims
+      if (!request.campaignClaimIds || request.campaignClaimIds.length === 0) {
+        throw new HttpException(400, "No campaign claims provided");
+      }
+
+      // Fetch and validate all campaign claims
+      const claims = await Promise.all(
+        request.campaignClaimIds.map(id => this.campaignClaimRepository.findById(id))
+      );
+
+      // Check all claims exist and belong to the user
+      for (let i = 0; i < claims.length; i++) {
+        const claim = claims[i];
+        if (!claim) {
+          throw new HttpException(404, `Campaign claim ${request.campaignClaimIds[i]} not found`);
+        }
+        if (claim.userId !== request.userId) {
+          throw new HttpException(403, `Campaign claim ${claim.id} does not belong to this user`);
+        }
+        if (claim.status !== "pending") {
+          throw new HttpException(400, `Campaign claim ${claim.id} is already ${claim.status}`);
+        }
+      }
+
+      // Validate delivery fee
+      const deliveryFee = request.deliveryFee || 0;
+      if (deliveryFee < 0) {
+        throw new HttpException(400, "Invalid delivery fee");
+      }
+
+      // Use R5 for testing in sandbox, actual delivery fee in production
+      const finalAmount = config.isProduction ? deliveryFee : 5;
+
+      const paymentReference = this.generatePaymentReference(request.userId, "CLAIM");
+
+      // Store payment context for later order creation
+      this.storePaymentContext(paymentReference, {
+        userId: request.userId,
+        shippingAddress: request.deliveryAddress,
+        paymentMethod: "payfast",
+        email: request.email,
+        phone: request.phone,
+        fullName: request.fullName,
+        timestamp: Date.now(),
+        campaignClaimIds: request.campaignClaimIds,
+      });
+
+      const paymentUrl = this.buildPayFastUrl(config, {
+        amount: finalAmount,
+        paymentReference,
+        itemCount: claims.length,
+        email: request.email,
+      });
+
+      console.log(`✅ Campaign claim payment URL generated: ${paymentReference}`);
+
+      return {
+        paymentUrl,
+        paymentReference,
+        amount: finalAmount,
+        merchantId: config.merchantId,
+      };
+    } catch (error: any) {
+      console.error(`❌ Error generating campaign claim payment:`, error);
       if (error instanceof HttpException) {
         throw error;
       }
@@ -205,6 +286,7 @@ export class PayFastService implements IPayfastService {
       console.log(`📋 Found payment context:`, {
         userId: context.userId,
         paymentMethod: context.paymentMethod,
+        isCampaignOrder: !!context.campaignClaimIds,
       });
 
       const existingOrder = await this.orderRepository.findByOrderNumber(paymentReference);
@@ -214,8 +296,14 @@ export class PayFastService implements IPayfastService {
         return existingOrder;
       }
 
-      // Create order from cart using the order service
-      // The order service will create the order with items and calculate total
+      // Check if this is a campaign claim order
+      if (context.campaignClaimIds && context.campaignClaimIds.length > 0) {
+        console.log(`🎁 Creating campaign claim order with ${context.campaignClaimIds.length} claims`);
+        return await this.createCampaignClaimOrder(paymentReference, context);
+      }
+
+      // Regular cart order
+      console.log(`🛒 Creating regular cart order`);
       const orderData: ICreateOrder = {
         userId: context.userId,
         shippingAddress: context.shippingAddress,
@@ -252,6 +340,77 @@ export class PayFastService implements IPayfastService {
     } catch (error: any) {
       console.error(`❌ Error in auto order creation for ${paymentReference}:`, error);
       return null;
+    }
+  }
+
+  private async createCampaignClaimOrder(paymentReference: string, context: PaymentContext): Promise<any> {
+    try {
+      // Fetch all campaign claims with full details
+      const claims = await Promise.all(
+        context.campaignClaimIds!.map(id => this.campaignClaimRepository.findById(id))
+      );
+
+      // Filter out null claims and validate
+      const validClaims = claims.filter(claim => claim !== null);
+      if (validClaims.length === 0) {
+        throw new HttpException(404, "No valid campaign claims found");
+      }
+
+      // Create order directly in repository
+      const order = await this.orderRepository.create({
+        userId: context.userId,
+        shippingAddress: context.shippingAddress,
+        paymentMethod: context.paymentMethod,
+        email: context.email,
+        phone: context.phone,
+        notes: `Campaign claim order - Payment reference: ${paymentReference}`,
+      });
+
+      // Create order items from campaign claims (price = 0 for free products)
+      for (const claim of validClaims) {
+        if (!claim.campaign) continue;
+
+        await this.orderRepository.createOrderItem(order.id!, {
+          productId: claim.campaign.productId,
+          productVariantId: claim.campaign.variantId || null,
+          quantity: 1, // Campaign claims are always quantity 1
+          unitPrice: 0, // Free product
+          totalPrice: 0, // Free product
+          status: "pending",
+        } as any);
+      }
+
+      // Update order with payment reference, campaign claim IDs, and paid status
+      const updatedOrder = await this.orderRepository.update({
+        id: order.id!,
+        orderNumber: paymentReference,
+        paymentStatus: "paid",
+        campaignClaimIds: context.campaignClaimIds,
+        totalAmount: 0, // Only delivery fee was charged, but that's not part of order items
+      } as any);
+
+      // Mark all claims as awaiting fulfillment (vendor still needs to ship)
+      for (const claim of validClaims) {
+        await this.campaignClaimRepository.update(claim.id, {
+          status: "awaiting_fulfillment",
+        });
+      }
+
+      console.log(`✅ Campaign claim order created successfully:`, {
+        orderNumber: updatedOrder.orderNumber,
+        paymentReference,
+        claimCount: validClaims.length,
+        campaignClaimIds: context.campaignClaimIds,
+      });
+
+      // Clean up payment context
+      this.paymentContexts.delete(paymentReference);
+      console.log(`🧹 Payment context cleaned up for: ${paymentReference}`);
+
+      return updatedOrder;
+    } catch (error: any) {
+      console.error(`❌ Error creating campaign claim order:`, error);
+      throw error;
     }
   }
 

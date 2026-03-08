@@ -23,6 +23,13 @@ export class PayFastRoute implements Routes {
       this.payfast.generatePayment
     );
 
+    // Generate payment URL for campaign claims (authenticated users only)
+    this.router.post(
+      `${this.path}/generate-campaign-payment`,
+      authorizationMiddleware,
+      this.payfast.generateCampaignClaimPayment
+    );
+
     // Handle PayFast ITN webhook (no auth required - PayFast calls this)
     this.router.post(
       `${this.path}/notification`,

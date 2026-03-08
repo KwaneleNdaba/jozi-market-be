@@ -13,6 +13,16 @@ export interface PaymentRequest {
   deliveryAddress?: string;
 }
 
+export interface CampaignClaimPaymentRequest {
+  userId: string;
+  email: string;
+  phone?: string;
+  fullName?: string;
+  deliveryAddress: any; // IShippingAddress
+  campaignClaimIds: string[]; // Array of campaign claim IDs
+  deliveryFee: number; // The delivery fee to charge
+}
+
 export interface PaymentResponse {
   paymentUrl: string;
   paymentReference: string;
@@ -44,6 +54,7 @@ interface PaymentContext {
   phone?: string;
   fullName?: string;
   timestamp: number;
+  campaignClaimIds?: string[]; // For campaign claim orders
 }
 
 export type { PaymentContext };

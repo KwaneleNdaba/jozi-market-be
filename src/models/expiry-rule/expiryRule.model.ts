@@ -4,11 +4,6 @@ class ExpiryRule extends Model {
   public id!: string;
   public expiryType!: string;
   public expiryDays!: number;
-  public expiryMode!: string;
-  public fixedDayOfMonth?: number | null;
-  public gracePeriodDays!: number;
-  public warningDaysBefore!: number;
-  public sendExpiryNotifications!: boolean;
   public active!: boolean;
   public createdAt!: Date;
   public updatedAt!: Date;
@@ -22,7 +17,7 @@ class ExpiryRule extends Model {
           primaryKey: true,
         },
         expiryType: {
-          type: DataTypes.ENUM("purchase", "referral", "engagement"),
+          type: DataTypes.ENUM("purchase", "referral", "engagement", "gift"),
           allowNull: false,
         },
         expiryDays: {
@@ -31,40 +26,6 @@ class ExpiryRule extends Model {
           validate: {
             min: 0,
           },
-        },
-        expiryMode: {
-          type: DataTypes.ENUM("rolling", "fixed_monthly"),
-          allowNull: false,
-          defaultValue: "rolling",
-        },
-        fixedDayOfMonth: {
-          type: DataTypes.INTEGER,
-          allowNull: true,
-          validate: {
-            min: 1,
-            max: 31,
-          },
-        },
-        gracePeriodDays: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          validate: {
-            min: 0,
-          },
-        },
-        warningDaysBefore: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 7,
-          validate: {
-            min: 0,
-          },
-        },
-        sendExpiryNotifications: {
-          type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: true,
         },
         active: {
           type: DataTypes.BOOLEAN,

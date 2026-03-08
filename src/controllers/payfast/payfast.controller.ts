@@ -48,6 +48,56 @@ export class PayFastController {
     }
   };
 
+  public generateCampaignClaimPayment = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        throw new HttpException(401, "Unauthorized");
+      }
+
+      const { email, phone, fullName, deliveryAddress, campaignClaimIds, deliveryFee } = req.body;
+
+      if (!email) {
+        throw new HttpException(400, "Email is required");
+      }
+
+      if (!deliveryAddress) {
+        throw new HttpException(400, "Delivery address is required");
+      }
+
+      if (!campaignClaimIds || !Array.isArray(campaignClaimIds) || campaignClaimIds.length === 0) {
+        throw new HttpException(400, "Campaign claim IDs are required");
+      }
+
+      if (deliveryFee === undefined || deliveryFee === null || deliveryFee < 0) {
+        throw new HttpException(400, "Valid delivery fee is required");
+      }
+
+      const paymentData = await this.payfastService.generatePaymentForCampaignClaims({
+        userId,
+        email,
+        phone,
+        fullName,
+        deliveryAddress,
+        campaignClaimIds,
+        deliveryFee,
+      });
+
+      const response: CustomResponse<PaymentResponse> = {
+        data: paymentData,
+        message: "Campaign claim payment URL generated successfully",
+        error: false,
+      };
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public handleITN = async (
     req: Request,
     res: Response,

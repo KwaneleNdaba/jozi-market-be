@@ -1,5 +1,5 @@
 import { Token } from "typedi";
-import type { IExpiryRule, ICreateExpiryRule, ExpiryType, ExpiryMode } from "@/types/points.types";
+import type { IExpiryRule, ICreateExpiryRule, ExpiryType } from "@/types/points.types";
 
 export interface IExpiryRuleService {
   create(data: ICreateExpiryRule): Promise<IExpiryRule>;
@@ -9,11 +9,9 @@ export interface IExpiryRuleService {
   delete(id: string): Promise<void>;
   
   findByExpiryType(expiryType: ExpiryType): Promise<IExpiryRule[]>;
-  findByExpiryMode(expiryMode: ExpiryMode): Promise<IExpiryRule[]>;
   validateExpirySettings(data: ICreateExpiryRule | Partial<IExpiryRule>): Promise<void>;
   activateRule(id: string): Promise<IExpiryRule>;
   deactivateRule(id: string): Promise<IExpiryRule>;
-  toggleNotifications(id: string): Promise<IExpiryRule>;
   calculateExpiryDate(ruleId: string, earnedDate: Date): Promise<Date>;
 }
 

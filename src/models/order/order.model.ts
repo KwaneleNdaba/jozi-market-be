@@ -13,6 +13,9 @@ class Order extends Model {
   public phone?: string;
   public notes?: string;
 
+  // Campaign claim IDs for free product orders
+  public campaignClaimIds?: string[];
+
   // Return flags
   public isReturnRequested?: boolean;
   public isReturnApproved?: boolean;
@@ -87,6 +90,13 @@ class Order extends Model {
         notes: {
           type: DataTypes.TEXT,
           allowNull: true,
+        },
+
+        // Campaign claim IDs for free product orders (JSON array)
+        campaignClaimIds: {
+          type: DataTypes.JSON,
+          allowNull: true,
+          defaultValue: null,
         },
 
         // Return flags

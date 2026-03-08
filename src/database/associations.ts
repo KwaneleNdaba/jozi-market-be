@@ -31,6 +31,8 @@ import ExpiryRule from "@/models/expiry-rule/expiryRule.model";
 import AbuseFlag from "@/models/abuse-flag/abuseFlag.model";
 import PointsHistory from "@/models/points-history/pointsHistory.model";
 import UserPointsBalance from "@/models/user-points-balance/userPointsBalance.model";
+import FreeProductCampaign from "@/models/free-product-campaign/freeProductCampaign.model";
+import CampaignClaim from "@/models/campaign-claim/campaignClaim.model";
 
 export function setupAssociations() {
   // User - RefreshToken
@@ -647,5 +649,56 @@ export function setupAssociations() {
   Tier.hasMany(UserPointsBalance, {
     foreignKey: "currentTierId",
     as: "usersInTier",
+  });
+
+  // FreeProductCampaign associations
+  FreeProductCampaign.belongsTo(User, {
+    foreignKey: "vendorId",
+    as: "vendor",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(FreeProductCampaign, {
+    foreignKey: "vendorId",
+    as: "freeProductCampaigns",
+  });
+
+  FreeProductCampaign.belongsTo(Product, {
+    foreignKey: "productId",
+    as: "product",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Product.hasMany(FreeProductCampaign, {
+    foreignKey: "productId",
+    as: "freeProductCampaigns",
+  });
+
+  FreeProductCampaign.belongsTo(ProductVariant, {
+    foreignKey: "variantId",
+    as: "variant",
+  });
+
+  // CampaignClaim associations
+  CampaignClaim.belongsTo(FreeProductCampaign, {
+    foreignKey: "campaignId",
+    as: "campaign",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  FreeProductCampaign.hasMany(CampaignClaim, {
+    foreignKey: "campaignId",
+    as: "claims",
+  });
+
+  CampaignClaim.belongsTo(User, {
+    foreignKey: "userId",
+    as: "claimant",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  User.hasMany(CampaignClaim, {
+    foreignKey: "userId",
+    as: "campaignClaims",
   });
 }

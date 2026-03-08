@@ -1,7 +1,7 @@
 import { Inject, Service } from "typedi";
 import { USER_POINTS_BALANCE_REPOSITORY_TOKEN, type IUserPointsBalanceRepository } from "@/interfaces/points/IUserPointsBalanceRepository.interface";
 import { USER_POINTS_BALANCE_SERVICE_TOKEN, type IUserPointsBalanceService } from "@/interfaces/points/IUserPointsBalanceService.interface";
-import type { IUserPointsBalance } from "@/types/points.types";
+import type { IUserPointsBalance, IPointsDashboardSummary } from "@/types/points.types";
 import { HttpException } from "@/exceptions/HttpException";
 
 @Service({ id: USER_POINTS_BALANCE_SERVICE_TOKEN })
@@ -58,6 +58,15 @@ export class UserPointsBalanceService implements IUserPointsBalanceService {
     } catch (error: any) {
       if (error instanceof HttpException) throw error;
       throw new HttpException(500, error.message || "Failed to update current tier");
+    }
+  }
+
+  public async getDashboardSummary(userId: string): Promise<IPointsDashboardSummary> {
+    try {
+      return await this.userPointsBalanceRepository.getDashboardSummary(userId);
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(500, error.message || "Failed to get dashboard summary");
     }
   }
 }

@@ -32,6 +32,9 @@ import ExpiryRule from "@/models/expiry-rule/expiryRule.model";
 import AbuseFlag from "@/models/abuse-flag/abuseFlag.model";
 import PointsHistory from "@/models/points-history/pointsHistory.model";
 import UserPointsBalance from "@/models/user-points-balance/userPointsBalance.model";
+import PointsClaim from "@/models/points-claim/pointsClaim.model";
+import FreeProductCampaign from "@/models/free-product-campaign/freeProductCampaign.model";
+import CampaignClaim from "@/models/campaign-claim/campaignClaim.model";
 import { DB_HOST, DB_NAME, DB_PASSWORD, DB_USER } from "../config";
 import User from "../models/user/user.model";
 import { setupAssociations } from "./associations";
@@ -53,7 +56,7 @@ const dbConnection = new Sequelize({
     acquire: 30000,
     idle: 10000,
   },
-  logging: false,
+  logging: true,
 });
 
 User.initialize(dbConnection);
@@ -92,6 +95,9 @@ ExpiryRule.initialize(dbConnection);
 AbuseFlag.initialize(dbConnection);
 PointsHistory.initialize(dbConnection);
 UserPointsBalance.initialize(dbConnection);
+PointsClaim.initialize(dbConnection);
+FreeProductCampaign.initialize(dbConnection);
+CampaignClaim.initialize(dbConnection);
 
 setupAssociations();
 const syncDatabase = async () => {

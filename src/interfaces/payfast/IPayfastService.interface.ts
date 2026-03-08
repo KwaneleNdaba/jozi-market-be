@@ -1,8 +1,9 @@
 import { Token } from "typedi";
-import type { PaymentRequest, PaymentResponse, PaymentStatusResponse } from "@/types/payfast.types";
+import type { PaymentRequest, PaymentResponse, PaymentStatusResponse, CampaignClaimPaymentRequest } from "@/types/payfast.types";
 
 export interface IPayfastService {
   generatePaymentFromCart(request: PaymentRequest): Promise<PaymentResponse>;
+  generatePaymentForCampaignClaims(request: CampaignClaimPaymentRequest): Promise<PaymentResponse>;
   handlePayFastITN(itnData: any): Promise<{
     success: boolean;
     order?: any;

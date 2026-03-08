@@ -1,5 +1,5 @@
 import { Token } from "typedi";
-import type { IUserPointsBalance, IUpdateUserPointsBalance } from "@/types/points.types";
+import type { IUserPointsBalance, IUpdateUserPointsBalance, IPointsDashboardSummary } from "@/types/points.types";
 
 export interface IUserPointsBalanceRepository {
   findByUserId(userId: string): Promise<IUserPointsBalance | null>;
@@ -8,6 +8,8 @@ export interface IUserPointsBalanceRepository {
   confirmPendingPoints(userId: string, points: number): Promise<IUserPointsBalance>;
   deductPendingPoints(userId: string, points: number): Promise<IUserPointsBalance>;
   deductAvailablePoints(userId: string, points: number): Promise<IUserPointsBalance>;
+  incrementAvailablePoints(userId: string, points: number): Promise<IUserPointsBalance>;
+  getDashboardSummary(userId: string): Promise<IPointsDashboardSummary>;
 }
 
 export const USER_POINTS_BALANCE_REPOSITORY_TOKEN = new Token<IUserPointsBalanceRepository>("IUserPointsBalanceRepository");

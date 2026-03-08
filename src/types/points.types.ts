@@ -170,7 +170,7 @@ export interface ICreateReferralSlotReward {
 // ============================================
 
 export type SourceType = 'purchase' | 'referral' | 'review' | 'engagement' | 'signup' | 'campaign' | 'bonus';
-export type ExpiryType = 'purchase' | 'referral' | 'engagement';
+export type ExpiryType = 'purchase' | 'referral' | 'engagement'|'gift';
 
 export interface IEarningRule {
   id: string;
@@ -197,17 +197,10 @@ export interface ICreateEarningRule {
 // 10. EXPIRY RULE TYPES
 // ============================================
 
-export type ExpiryMode = 'rolling' | 'fixed_monthly';
-
 export interface IExpiryRule {
   id: string;
   expiryType: ExpiryType;
   expiryDays: number;
-  expiryMode: ExpiryMode;
-  fixedDayOfMonth?: number | null;
-  gracePeriodDays: number;
-  warningDaysBefore: number;
-  sendExpiryNotifications: boolean;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -216,11 +209,6 @@ export interface IExpiryRule {
 export interface ICreateExpiryRule {
   expiryType: ExpiryType;
   expiryDays: number;
-  expiryMode?: ExpiryMode;
-  fixedDayOfMonth?: number;
-  gracePeriodDays?: number;
-  warningDaysBefore?: number;
-  sendExpiryNotifications?: boolean;
   active?: boolean;
 }
 
@@ -269,7 +257,7 @@ export interface ICreateAbuseFlag {
 // 13. POINTS HISTORY TYPES
 // ============================================
 
-export type TransactionType = 'earn' | 'redeem' | 'expire' | 'adjust' | 'gift_sent' | 'gift_received' | 'refund';
+export type TransactionType = 'earn' | 'redeem' | 'expire' | 'adjust' | 'gift_sent' | 'gift_received' | 'refund' | 'claim' | 'pending_to_claimable' | 'engagement';
 
 export interface IPointsHistory {
   id: string;
@@ -330,4 +318,46 @@ export interface IUpdateUserPointsBalance {
   lifetimeRedeemed?: number;
   currentTierId?: string | null;
   lastTransactionAt?: Date | null;
+}
+
+// ============================================
+// 15. POINTS DASHBOARD SUMMARY TYPES
+// ============================================
+
+export interface IPointsDashboardSummary {
+  balance: {
+    availablePoints: number;
+    pendingPoints: number;
+    totalPoints: number;
+  };
+  lifetime: {
+    totalEarned: number;
+    totalRedeemed: number;
+    netPoints: number;
+  };
+  tier?: {
+    id: string;
+    name: string;
+    tierLevel: number;
+    color?: string | null;
+    multiplier: number;
+    minPoints: number;
+    nextTier?: {
+      name: string;
+      minPoints: number;
+      pointsNeeded: number;
+    } | null;
+  } | null;
+  recentActivity: Array<{
+    id: string;
+    transactionType: string;
+    pointsChange: number;
+    description?: string | null;
+    createdAt: Date;
+  }>;
+  stats: {
+    pointsExpiringThisMonth: number;
+    lastTransactionAt?: Date | null;
+    daysActive: number;
+  };
 }
