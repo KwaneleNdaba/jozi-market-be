@@ -470,6 +470,51 @@ export class OrderService implements IOrderService {
     }
   }
 
+  public async getCampaignClaimOrders(page: number, limit: number, search?: string): Promise<any> {
+    try {
+      const result = await this.orderRepository.findCampaignClaimOrders(page, limit, search);
+
+      // Enrich each order with items (with signed URLs)
+      const enrichedOrders = await Promise.all(
+        result.orders.map(async (order: IOrder) => {
+          const orderWithItems = await this.orderRepository.getOrderWithItems(order.id!);
+          
+          // Ensure user details are preserved
+          const userDetails = orderWithItems?.user || order.user;
+          
+          if (orderWithItems && orderWithItems.items) {
+            const enrichedItems = await Promise.all(
+              orderWithItems.items.map(async (item) => {
+                const product = await this.productService.getProductById(item.productId);
+                return {
+                  ...item,
+                  product: product || undefined,
+                };
+              })
+            );
+            orderWithItems.items = enrichedItems as any;
+          }
+          
+          // Return orderWithItems with user details
+          const finalOrder = orderWithItems || order;
+          
+          if (userDetails && !finalOrder.user) {
+            finalOrder.user = userDetails;
+          }
+          
+          return finalOrder;
+        })
+      );
+
+      return {
+        orders: enrichedOrders,
+        pagination: result.pagination,
+      };
+    } catch (error: any) {
+      throw new HttpException(500, error.message);
+    }
+  }
+
   public async updateOrder(updateData: IUpdateOrder): Promise<IOrder> {
     try {
       const order = await this.orderRepository.findById(updateData.id);

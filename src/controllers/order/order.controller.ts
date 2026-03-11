@@ -129,6 +129,29 @@ export class OrderController {
     }
   };
 
+  public getCampaignClaimOrders = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string;
+
+      const result = await this.orderService.getCampaignClaimOrders(page, limit, search);
+
+      const response: CustomResponse<any> = {
+        data: result,
+        message: "Campaign claim orders retrieved successfully",
+        error: false,
+      };
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public updateOrder = async (
     req: Request,
     res: Response,

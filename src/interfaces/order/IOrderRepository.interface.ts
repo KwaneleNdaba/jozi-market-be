@@ -1,5 +1,5 @@
 import { Token } from "typedi";
-import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder, IOrderItemWithDetails } from "@/types/order.types";
+import type { IOrder, IOrderItem, ICreateOrder, IUpdateOrder, IOrderItemWithDetails, IPaginatedOrdersResponse } from "@/types/order.types";
 
 export interface IOrderRepository {
   create(orderData: ICreateOrder, orderNumber?: string): Promise<IOrder>;
@@ -7,6 +7,7 @@ export interface IOrderRepository {
   findByOrderNumber(orderNumber: string): Promise<IOrder | null>;
   findByUserId(userId: string): Promise<IOrder[]>;
   findAll(status?: string): Promise<IOrder[]>;
+  findCampaignClaimOrders(page: number, limit: number, search?: string): Promise<IPaginatedOrdersResponse>;
   update(updateData: IUpdateOrder): Promise<IOrder>;
   createOrderItem(orderId: string, itemData: Omit<IOrderItem, "id" | "orderId" | "createdAt" | "updatedAt">): Promise<IOrderItem>;
   getOrderWithItems(orderId: string): Promise<IOrder | null>;

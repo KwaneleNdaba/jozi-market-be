@@ -30,6 +30,13 @@ export class OrderRoute implements Routes {
       this.order.getMyOrders
     );
 
+    // Get campaign claim orders with pagination and search (admin only) - MUST come before /:id route
+    this.router.get(
+      `${this.path}/campaign-claims`,
+      
+      this.order.getCampaignClaimOrders
+    );
+
     // Get orders by vendor ID (grouped by date) - MUST come before /:id route
     this.router.get(
       `${this.path}/vendor/:vendorId`,

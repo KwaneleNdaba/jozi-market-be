@@ -129,6 +129,49 @@ export class OrderRepository implements IOrderRepository {
     }
   }
 
+  public async findCampaignClaimOrders(page: number, limit: number, search?: string): Promise<any> {
+    try {
+      const offset = (page - 1) * limit;
+      const where: any = {
+        isCampaignClaimOrder: true,
+      };
+
+      // Add search functionality
+      if (search) {
+        where[Op.or] = [
+          { orderNumber: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+          { phone: { [Op.like]: `%${search}%` } },
+        ];
+      }
+
+      const { count, rows } = await Order.findAndCountAll({
+        where,
+        include: this.getOrderIncludes(),
+        order: [["createdAt", "DESC"]],
+        limit,
+        offset,
+        raw: false,
+        distinct: true,
+      });
+
+      const orders = rows.map((order) => order.get({ plain: true }));
+      const totalPages = Math.ceil(count / limit);
+
+      return {
+        orders,
+        pagination: {
+          page,
+          limit,
+          totalOrders: count,
+          totalPages,
+        },
+      };
+    } catch (error: any) {
+      throw new HttpException(409, error.message);
+    }
+  }
+
   public async update(updateData: IUpdateOrder): Promise<IOrder> {
     try {
       const order = await Order.findOne({
@@ -146,6 +189,9 @@ export class OrderRepository implements IOrderRepository {
       if (updateData.notes !== undefined) updatePayload.notes = updateData.notes;
       if ((updateData as any).totalAmount !== undefined) updatePayload.totalAmount = (updateData as any).totalAmount;
       if ((updateData as any).orderNumber !== undefined) updatePayload.orderNumber = (updateData as any).orderNumber;
+      // Campaign claim fields
+      if ((updateData as any).campaignClaimIds !== undefined) updatePayload.campaignClaimIds = (updateData as any).campaignClaimIds;
+      if ((updateData as any).isCampaignClaimOrder !== undefined) updatePayload.isCampaignClaimOrder = (updateData as any).isCampaignClaimOrder;
       // Return flags
       if ((updateData as any).isReturnRequested !== undefined) {
         updatePayload.isReturnRequested = (updateData as any).isReturnRequested;
@@ -185,6 +231,8 @@ export class OrderRepository implements IOrderRepository {
         unitPrice: itemData.unitPrice,
         totalPrice: itemData.totalPrice,
         status: (itemData as any).status || "pending",
+        isCampaignClaimItem: (itemData as any).isCampaignClaimItem || false,
+        campaignClaimId: (itemData as any).campaignClaimId || null,
       } as any);
       return orderItem.get({ plain: true });
     } catch (error: any) {

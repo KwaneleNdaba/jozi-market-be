@@ -213,3 +213,13 @@ export interface IOrderItemsGroupedResponse {
     endDate: string;
   };
 }
+
+export interface IPaginatedOrdersResponse {
+  orders: IOrder[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalOrders: number;
+    totalPages: number;
+  };
+}
